@@ -78,6 +78,15 @@ func Environment(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, a
 
 	builder.Table = &table
 	builder.ShowTreeView = commonFlagList.showTreeView
+
+	renderFn := func() (string, error) {
+		return sprintTableAs(*builder.Table, commonFlagList.outputAs), nil
+	}
+
+	if commonFlagList.watch {
+		return builder.WatchBuild(&loopinfo, renderFn)
+	}
+
 	if err := builder.Build(&loopinfo); err != nil {
 		return err
 	}
