@@ -100,23 +100,40 @@ func Status(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, args [
 	log.Debug("commonFlagList.showTreeView =", commonFlagList.showTreeView)
 	builder.ShowTreeView = commonFlagList.showTreeView
 
+	renderFn := func() (string, error) {
+		if !builder.ShowTreeView {
+			if !loopinfo.ShowPrevious {
+				if commonFlagList.showOddities {
+					row2Remove, err := builder.Table.ListOutOfRange(builder.DefaultHeaderLen + 2)
+					if err != nil {
+						return "", err
+					}
+					builder.Table.HideRows(row2Remove)
+				}
+			}
+		}
+		return sprintTableAs(*builder.Table, commonFlagList.outputAs), nil
+	}
+
+	if commonFlagList.watch {
+		return builder.WatchBuild(&loopinfo, renderFn)
+	}
+
 	if err := builder.Build(&loopinfo); err != nil {
 		return err
 	}
 
 	if !builder.ShowTreeView {
-		if !loopinfo.ShowPrevious { // restart count dosent show up when using previous flag
-			// do we need to find the outliers, we have enough data to compute a range
+		if !loopinfo.ShowPrevious {
 			if commonFlagList.showOddities {
-				row2Remove, err := table.ListOutOfRange(builder.DefaultHeaderLen + 2) // 3 = restarts column
+				row2Remove, err := builder.Table.ListOutOfRange(builder.DefaultHeaderLen + 2)
 				if err != nil {
 					return err
 				}
-				table.HideRows(row2Remove)
+				builder.Table.HideRows(row2Remove)
 			}
 		}
 	}
-
 	outputTableAs(table, commonFlagList.outputAs)
 	return nil
 

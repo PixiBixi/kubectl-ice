@@ -5,6 +5,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	v1 "k8s.io/api/core/v1"
 )
@@ -44,6 +45,15 @@ type RowBuilder struct {
 	InputFilename      string // filename to be used as the source instead of reading pod information from k8s api
 	StdinChanged       bool   // have we been run as part of a shell redirect
 
+	// PreBuildFn is an optional callback invoked before each Build call in watch mode.
+	// Use it to refresh data that Build itself does not re-fetch (e.g. metrics).
+	PreBuildFn func() error
+
+	// RefreshInterval, if non-zero, adds a periodic ticker in watch mode that
+	// triggers a rebuild independently of pod events. Use for commands like
+	// cpu/memory where the underlying metrics change without pod events firing.
+	RefreshInterval time.Duration
+
 	annotationLabel map[string]map[string]map[string]map[string]string
 	head            []string
 	filter          []matchFilter
@@ -64,8 +74,10 @@ type BuilderInformation struct {
 
 type matchFilter struct {
 	value      string
-	comparison int  // 1:>, 2:<, 3:!
-	compareEql bool // true:==, true:<=, true:>=
+	valueInt   int64   // pre-parsed integer value, avoids repeated ParseInt per row
+	valueFloat float64 // pre-parsed float value, avoids repeated ParseFloat per row
+	comparison int     // 1:>, 2:<, 3:!
+	compareEql bool    // true:==, true:<=, true:>=
 	set        bool
 }
 
@@ -288,9 +300,6 @@ func (b *RowBuilder) walkTreeCreateRow(loop Looper, info *BuilderInformation, pa
 
 // matchShouldExclude checks the match filter and returns true if the row should be excluded from output
 func (b *RowBuilder) matchShouldExclude(tblOut []Cell) bool {
-	var fValue float64
-	var iValue int64
-
 	exclude := true
 
 	if len(b.FilterList) == 0 {
@@ -310,17 +319,11 @@ func (b *RowBuilder) matchShouldExclude(tblOut []Cell) bool {
 		}
 
 		if cell.typ == 1 {
-			// convert filter.value to number
-			iValue, _ = strconv.ParseInt(filter.value, 10, 64)
-
-			exclude = b.canExcludeMatchInt(filter, cell.number, iValue)
+			exclude = b.canExcludeMatchInt(filter, cell.number, filter.valueInt)
 		}
 
 		if cell.typ == 2 {
-			// convert filter.value to float
-			fValue, _ = strconv.ParseFloat(filter.value, 64)
-
-			exclude = b.canExcludeMatchFloat(filter, cell.float, fValue)
+			exclude = b.canExcludeMatchFloat(filter, cell.float, filter.valueFloat)
 		}
 
 		if exclude {
@@ -531,6 +534,8 @@ func (b *RowBuilder) setFilter(filter map[string]matchValue) error {
 			}
 
 			b.filter[idx].value = value
+			b.filter[idx].valueInt, _ = strconv.ParseInt(value, 10, 64)
+			b.filter[idx].valueFloat, _ = strconv.ParseFloat(value, 64)
 			b.filter[idx].set = true
 		}
 

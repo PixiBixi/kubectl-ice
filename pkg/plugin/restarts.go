@@ -73,21 +73,34 @@ func Restarts(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, args
 	builder.Table = &table
 	builder.ShowTreeView = commonFlagList.showTreeView
 
+	renderFn := func() (string, error) {
+		if commonFlagList.showOddities {
+			row2Remove, err := builder.Table.ListOutOfRange(4)
+			if err != nil {
+				return "", err
+			}
+			builder.Table.HideRows(row2Remove)
+		}
+		return sprintTableAs(*builder.Table, commonFlagList.outputAs), nil
+	}
+
+	if commonFlagList.watch {
+		return builder.WatchBuild(loopinfo, renderFn)
+	}
+
 	builder.Build(loopinfo)
 
 	if err := table.SortByNames(commonFlagList.sortList...); err != nil {
 		return err
 	}
 
-	// do we need to find the outliers, we have enough data to compute a range
 	if commonFlagList.showOddities {
-		row2Remove, err := table.ListOutOfRange(4) //3 = restarts column
+		row2Remove, err := builder.Table.ListOutOfRange(4)
 		if err != nil {
 			return err
 		}
-		table.HideRows(row2Remove)
+		builder.Table.HideRows(row2Remove)
 	}
-
 	outputTableAs(table, commonFlagList.outputAs)
 	return nil
 

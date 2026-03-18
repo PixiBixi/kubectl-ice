@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
@@ -18,7 +19,7 @@ func resourceShort(r string) string {
 // returns a string replacing %[1] with the resourse type r
 func resourceDescription(r string) string {
 	return fmt.Sprintf(` Prints the current %[1]s usage along with configured requests and limits. The calculated %% fields
-serve as an easy way to see how close you are to the configured sizes.  By specifying the -r 
+serve as an easy way to see how close you are to the configured sizes.  By specifying the -r
 flag you can see raw unfiltered values.  If no name is specified the container %[1]s details
 of all pods in the current namespace are shown.
 
@@ -37,7 +38,7 @@ func resourceExample(r string) string {
   # List container %[2]s info from a single pod
   %[1]s %[2]s my-pod-4jh36
 
-  # List %[2]s info for all containers named web-container searching all 
+  # List %[2]s info for all containers named web-container searching all
   # pods in the current namespace
   %[1]s %[2]s -c web-container
 
@@ -119,6 +120,34 @@ func Resources(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, arg
 	builder.Table = &table
 	builder.ShowTreeView = commonFlagList.showTreeView
 
+	renderFn := func() (string, error) {
+		if commonFlagList.showOddities {
+			row2Remove, err := builder.Table.ListOutOfRange(builder.DefaultHeaderLen)
+			if err != nil {
+				return "", err
+			}
+			builder.Table.HideRows(row2Remove)
+		}
+		return sprintTableAs(*builder.Table, commonFlagList.outputAs), nil
+	}
+
+	if commonFlagList.watch {
+		builder.RefreshInterval = 25 * time.Second
+		// Re-fetch metrics before each Build in watch mode
+		if len(commonFlagList.inputFilename) == 0 && !stdinChanged {
+			builder.PreBuildFn = func() error {
+				podStateList, err := connect.GetMetricPods(args)
+				if err != nil {
+					log.Tell(err)
+					return nil
+				}
+				loopinfo.MetricsResource = loopinfo.podMetrics2Hashtable(podStateList)
+				return nil
+			}
+		}
+		return builder.WatchBuild(&loopinfo, renderFn)
+	}
+
 	if err := builder.Build(&loopinfo); err != nil {
 		return err
 	}
@@ -127,15 +156,13 @@ func Resources(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, arg
 		return err
 	}
 
-	// do we need to find the outliers, we have enough data to compute a range
 	if commonFlagList.showOddities {
-		row2Remove, err := table.ListOutOfRange(builder.DefaultHeaderLen) //1 = used column
+		row2Remove, err := builder.Table.ListOutOfRange(builder.DefaultHeaderLen)
 		if err != nil {
 			return err
 		}
-		table.HideRows(row2Remove)
+		builder.Table.HideRows(row2Remove)
 	}
-
 	outputTableAs(table, commonFlagList.outputAs)
 	return nil
 }

@@ -5,12 +5,14 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 
 	a1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
@@ -45,20 +47,22 @@ const TypeNameCronJob string = "CronJob"
 // const TypeName string = ""
 
 type Connector struct {
-	clientSet      kubernetes.Clientset
-	metricSet      metricsclientset.Clientset
-	Flags          commonFlags
-	configFlags    *genericclioptions.ConfigFlags
-	metricFlags    *genericclioptions.ConfigFlags
-	configMapArray map[string]map[string]string
-	setNameSpace   string
-	podList        []v1.Pod                     // List of Pods
-	replicaList    map[string][]a1.ReplicaSet   // list of ReplicaSets
-	daemonList     map[string][]a1.DaemonSet    // list of DaemonSets
-	statefulList   map[string][]a1.StatefulSet  // list of StatefulSet
-	deploymentList map[string][]a1.Deployment   // list of Deployments
-	jobList        map[string][]batchv1.Job     // list of k8s Jobs
-	cronJobList    map[string][]batchv1.CronJob // list of k8s CronJobs
+	clientSet         kubernetes.Clientset
+	metricSet         metricsclientset.Clientset
+	Flags             commonFlags
+	configFlags       *genericclioptions.ConfigFlags
+	metricFlags       *genericclioptions.ConfigFlags
+	configMapArray    map[string]map[string]string
+	setNameSpace      string
+	resolvedNamespace string                       // cached result of kubeconfig context lookup
+	namespaceResolved bool                         // true once resolvedNamespace has been populated
+	podList           []v1.Pod                     // List of Pods
+	replicaList       map[string][]a1.ReplicaSet   // list of ReplicaSets
+	daemonList        map[string][]a1.DaemonSet    // list of DaemonSets
+	statefulList      map[string][]a1.StatefulSet  // list of StatefulSet
+	deploymentList    map[string][]a1.Deployment   // list of Deployments
+	jobList           map[string][]batchv1.Job     // list of k8s Jobs
+	cronJobList       map[string][]batchv1.CronJob // list of k8s CronJobs
 }
 
 type ParentData struct {
@@ -76,6 +80,7 @@ type ParentData struct {
 }
 
 type LeafNode struct {
+	childIndex    map[string]*LeafNode // O(1) lookup by name
 	child         []*LeafNode
 	name          string
 	kind          string
@@ -86,24 +91,23 @@ type LeafNode struct {
 }
 
 func (n *LeafNode) getChild(name string) *LeafNode {
-
-	for _, v := range n.child {
-		if v.name == name {
-			// return matching child if we have it
-			return v
-		}
+	if v, ok := n.childIndex[name]; ok {
+		return v
 	}
 
-	// if we got here we dont have a match so we create a new entry
-	child := LeafNode{
-		name:  name,
-		child: []*LeafNode{},
+	child := &LeafNode{
+		name:       name,
+		child:      []*LeafNode{},
+		childIndex: make(map[string]*LeafNode),
 	}
 
-	// and append it as a sibling
-	n.child = append(n.child, &child)
+	n.child = append(n.child, child)
+	if n.childIndex == nil {
+		n.childIndex = make(map[string]*LeafNode)
+	}
+	n.childIndex[name] = child
 
-	return &child
+	return child
 }
 
 // load config for the k8s endpoint
@@ -216,38 +220,49 @@ func (c *Connector) GetNodeLabels(podList []v1.Pod) (map[string]map[string]strin
 
 // returns a list of nodes
 func (c *Connector) GetNodes(nodeNameList []string) ([]v1.Node, error) {
-	nodeList := []v1.Node{}
 	selector := metav1.ListOptions{}
 
-	if len(nodeNameList) > 0 {
-		// single node
-		for _, nodename := range nodeNameList {
-			node, err := c.clientSet.CoreV1().Nodes().Get(context.TODO(), nodename, metav1.GetOptions{})
-			if err == nil {
-				nodeList = append(nodeList, []v1.Node{*node}...)
-			} else {
-				return []v1.Node{}, fmt.Errorf("failed to retrieve node from server: %w", err)
-			}
+	switch len(nodeNameList) {
+	case 0:
+		// list all nodes, optionally filtered by label selector
+		if len(c.Flags.labels) > 0 {
+			selector.LabelSelector = c.Flags.labels
 		}
-
-		return nodeList, nil
-	}
-
-	// multi nodes
-	if len(c.Flags.labels) > 0 {
-		selector.LabelSelector = c.Flags.labels
-	}
-
-	nodes, err := c.clientSet.CoreV1().Nodes().List(context.TODO(), selector)
-	if err == nil {
+		nodes, err := c.clientSet.CoreV1().Nodes().List(context.TODO(), selector)
+		if err != nil {
+			return []v1.Node{}, fmt.Errorf("failed to retrieve node list from server: %w", err)
+		}
 		if len(nodes.Items) == 0 {
 			return []v1.Node{}, errors.New("no nodes found in default namespace")
 		}
-	} else {
-		return []v1.Node{}, fmt.Errorf("failed to retrieve node list from server: %w", err)
-	}
+		return nodes.Items, nil
 
-	return nodes.Items, nil
+	case 1:
+		// single node: direct Get is cheapest
+		node, err := c.clientSet.CoreV1().Nodes().Get(context.TODO(), nodeNameList[0], metav1.GetOptions{})
+		if err != nil {
+			return []v1.Node{}, fmt.Errorf("failed to retrieve node from server: %w", err)
+		}
+		return []v1.Node{*node}, nil
+
+	default:
+		// multiple names: one List + client-side filter beats N sequential GETs
+		needed := make(map[string]struct{}, len(nodeNameList))
+		for _, n := range nodeNameList {
+			needed[n] = struct{}{}
+		}
+		all, err := c.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			return []v1.Node{}, fmt.Errorf("failed to retrieve node list from server: %w", err)
+		}
+		nodeList := make([]v1.Node, 0, len(nodeNameList))
+		for _, n := range all.Items {
+			if _, ok := needed[n.Name]; ok {
+				nodeList = append(nodeList, n)
+			}
+		}
+		return nodeList, nil
+	}
 }
 
 // SelectMatchingPodSpec select pods to inclue or exclude based on the field in v1.Pods.Spec an operator (!=, ==, =) and a string value to match with
@@ -396,18 +411,16 @@ func (c *Connector) GetConfigMapValue(configMap string, key string) string {
 	return c.configMapArray[configMap][key]
 }
 
-// GetNamespace retrieves the namespace that is currently set as default
+// GetNamespace retrieves the namespace that is currently set as default.
+// The kubeconfig read is performed at most once per Connector instance and cached.
 func (c *Connector) GetNamespace(allNamespaces bool) string {
-	namespace := ""
-	ctx := ""
-
-	if len(c.setNameSpace) >= 1 {
-		return c.setNameSpace
-	}
-
 	if allNamespaces {
 		// get/list pods will search all namespaces in the current context
 		return ""
+	}
+
+	if len(c.setNameSpace) >= 1 {
+		return c.setNameSpace
 	}
 
 	// was a namespace specified on the cmd line
@@ -415,25 +428,32 @@ func (c *Connector) GetNamespace(allNamespaces bool) string {
 		return *c.configFlags.Namespace
 	}
 
-	// now try to load the current namespace for our context
+	// return cached result if we already resolved it
+	if c.namespaceResolved {
+		return c.resolvedNamespace
+	}
+
+	// expensive: read kubeconfig from disk — done at most once per invocation
+	namespace := ""
+	ctx := ""
 	clientCfg, _ := clientcmd.NewDefaultClientConfigLoadingRules().Load()
-	// if context was suppiled on cmd line use that
 	if len(*c.configFlags.Context) > 0 {
 		ctx = *c.configFlags.Context
 	} else {
 		ctx = clientCfg.CurrentContext
 	}
 
-	if clientCfg.Contexts[ctx] == nil {
-		return "default"
+	if clientCfg.Contexts[ctx] != nil {
+		namespace = clientCfg.Contexts[ctx].Namespace
 	}
 
-	namespace = clientCfg.Contexts[ctx].Namespace
-	if len(namespace) > 0 {
-		return namespace
+	if len(namespace) == 0 {
+		namespace = "default"
 	}
 
-	return "default"
+	c.resolvedNamespace = namespace
+	c.namespaceResolved = true
+	return namespace
 }
 
 // SetNamespace sets the namespace to use when searching for pods
@@ -941,13 +961,47 @@ func (c *Connector) LoadCronJob(jobNameList []string, namespace string) error {
 	}
 }
 
+// ClearPodCache clears the cached pod list, forcing a re-fetch on the next GetPods call.
+func (c *Connector) ClearPodCache() {
+	c.podList = nil
+}
+
+// GetAllPodsAllNamespaces returns all pods across all namespaces regardless of
+// the current namespace filter. Used to compute accurate node allocations.
+func (c *Connector) GetAllPodsAllNamespaces() ([]v1.Pod, error) {
+	pods, err := c.clientSet.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve pods for node allocation: %w", err)
+	}
+	return pods.Items, nil
+}
+
+// GetMetricNodes returns node metrics from the metrics-server.
+func (c *Connector) GetMetricNodes() ([]v1beta1.NodeMetrics, error) {
+	list, err := c.metricSet.MetricsV1beta1().NodeMetricses().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve node metrics: %w", err)
+	}
+	return list.Items, nil
+}
+
+// WatchPods starts a Kubernetes watch stream for pods in the configured namespace.
+func (c *Connector) WatchPods(ctx context.Context) (watch.Interface, error) {
+	namespace := c.GetNamespace(c.Flags.allNamespaces)
+	opts := metav1.ListOptions{}
+	if len(c.Flags.labels) > 0 {
+		opts.LabelSelector = c.Flags.labels
+	}
+	return c.clientSet.CoreV1().Pods(namespace).Watch(ctx, opts)
+}
+
 func (c *Connector) BuildOwnersList() []*LeafNode {
 
-	rootnode := LeafNode{child: []*LeafNode{}}
+	rootnode := LeafNode{child: []*LeafNode{}, childIndex: make(map[string]*LeafNode)}
 
 	for _, pod := range c.podList {
 		nodename := pod.Spec.NodeName
-		// first create a list with the pod as the first entry
+		// build leaf-to-root: start with the pod, appendParents appends ancestors
 		parentList := []ParentData{{
 			name:          pod.Name,
 			namespace:     pod.Namespace,
@@ -957,8 +1011,9 @@ func (c *Connector) BuildOwnersList() []*LeafNode {
 		}}
 		oref := pod.GetOwnerReferences()
 
-		// then append each owner to the begining of the list, this way we end up with a list that runs from Node to Pod
+		// appendParents appends ancestors in leaf-to-root order; reverse gives root-to-leaf
 		parentList = c.appendParents(parentList, oref, nodename, pod.Namespace)
+		slices.Reverse(parentList)
 
 		// finally we can loop through the above list adding children to the tree where they are needed and using child nodes if they already exist
 		current := &rootnode
@@ -978,111 +1033,100 @@ func (c *Connector) BuildOwnersList() []*LeafNode {
 
 }
 
+// appendParents appends ancestor ParentData entries in leaf-to-root order (no prepend).
+// The caller must reverse the result to get root-to-leaf ordering for tree display.
 func (c *Connector) appendParents(current []ParentData, oref []metav1.OwnerReference, nodename string, namespace string) []ParentData {
 	log := logger{location: "k8sconnector:appendParents"}
 	log.Debug("Start")
 
-	// check if parent exists based on kind
+	// no owner: attach directly to the node from the pod spec
 	if len(oref) == 0 {
-		//if is dosent force it to nodename from the pod spec
-		current = append([]ParentData{{
+		return append(current, ParentData{
 			name:          nodename,
 			kind:          TypeNameNode,
 			kindIndicator: TypeIDNode,
-		}}, current...)
+		})
 	}
+
 	for _, v := range oref {
 		log.Debug("v.Kind", v.Kind)
 		if v.Kind == TypeNameNode {
-			current = append([]ParentData{{
+			return append(current, ParentData{
 				name:          v.Name,
 				kind:          v.Kind,
 				kindIndicator: TypeIDNode,
-			}}, current...)
+			})
 		}
 		if v.Kind == TypeNameDeployment {
 			deployment := c.GetDeployment(v.Name, namespace)
 			if deployment != nil {
-				current = append([]ParentData{{
+				return c.appendParents(append(current, ParentData{
 					name:          v.Name,
 					kind:          v.Kind,
 					kindIndicator: TypeIDDeployment,
 					namespace:     deployment.Namespace,
 					deployment:    *deployment,
-				}}, current...)
-
-				return c.appendParents(current, deployment.GetOwnerReferences(), nodename, namespace)
+				}), deployment.GetOwnerReferences(), nodename, namespace)
 			}
 		}
 		if v.Kind == TypeNameReplicaSet {
 			replica := c.GetReplicaSet(v.Name, namespace)
-
 			if replica != nil {
-				current = append([]ParentData{{
+				return c.appendParents(append(current, ParentData{
 					name:          v.Name,
 					kind:          v.Kind,
 					kindIndicator: TypeIDReplicaSet,
 					namespace:     replica.Namespace,
 					replica:       *replica,
-				}}, current...)
-
-				return c.appendParents(current, replica.GetOwnerReferences(), nodename, namespace)
+				}), replica.GetOwnerReferences(), nodename, namespace)
 			}
 		}
 		if v.Kind == TypeNameDaemonSet {
 			daemon := c.GetDaemonSet(v.Name, namespace)
 			if daemon != nil {
-				current = append([]ParentData{{
+				return c.appendParents(append(current, ParentData{
 					name:          v.Name,
 					kind:          v.Kind,
 					kindIndicator: TypeIDDaemonSet,
 					namespace:     daemon.Namespace,
 					daemon:        *daemon,
-				}}, current...)
-
-				return c.appendParents(current, daemon.GetOwnerReferences(), nodename, namespace)
+				}), daemon.GetOwnerReferences(), nodename, namespace)
 			}
 		}
 		if v.Kind == TypeNameStatefulSet {
 			stateful := c.GetStatefulSet(v.Name, namespace)
 			if stateful != nil {
-				current = append([]ParentData{{
+				return c.appendParents(append(current, ParentData{
 					name:          v.Name,
 					kind:          v.Kind,
 					kindIndicator: TypeIDStatefulSet,
 					namespace:     stateful.Namespace,
 					stateful:      *stateful,
-				}}, current...)
-
-				return c.appendParents(current, stateful.GetOwnerReferences(), nodename, namespace)
+				}), stateful.GetOwnerReferences(), nodename, namespace)
 			}
 		}
 		if v.Kind == TypeNameJob {
 			job := c.GetJob(v.Name, namespace)
 			if job != nil {
-				current = append([]ParentData{{
+				return c.appendParents(append(current, ParentData{
 					name:          v.Name,
 					kind:          v.Kind,
 					kindIndicator: TypeIDJob,
 					namespace:     job.Namespace,
 					job:           *job,
-				}}, current...)
-
-				return c.appendParents(current, job.GetOwnerReferences(), nodename, namespace)
+				}), job.GetOwnerReferences(), nodename, namespace)
 			}
 		}
 		if v.Kind == TypeNameCronJob {
 			job := c.GetCronJob(v.Name, namespace)
 			if job != nil {
-				current = append([]ParentData{{
+				return c.appendParents(append(current, ParentData{
 					name:          v.Name,
 					kind:          v.Kind,
 					kindIndicator: TypeIDCronJob,
 					namespace:     job.Namespace,
 					cronjob:       *job,
-				}}, current...)
-
-				return c.appendParents(current, job.GetOwnerReferences(), nodename, namespace)
+				}), job.GetOwnerReferences(), nodename, namespace)
 			}
 		}
 	}
