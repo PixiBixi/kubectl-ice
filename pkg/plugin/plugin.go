@@ -35,6 +35,7 @@ type commonFlags struct {
 	showColumnByName   string // list of column names to show, overrides other hidden columns
 	outputAsColour     int    // which coloring type do we use when displaying columns
 	useTheseColours    [][2]int
+	watch              bool // watch for pod changes and reprint the table
 }
 
 const (
@@ -104,6 +105,26 @@ func InitSubCommands(rootCmd *cobra.Command) {
 	cmdCommands.Flags().BoolP("node-tree", "", false, nodetreeShort)
 	addCommonFlags(cmdCommands)
 	rootCmd.AddCommand(cmdCommands)
+
+	// conditions
+	var cmdConditions = &cobra.Command{
+		Use:     "conditions",
+		Short:   conditionsShort,
+		Long:    fmt.Sprintf("%s\n\n%s", conditionsShort, conditionsDescription),
+		Example: fmt.Sprintf(conditionsExample, rootCmd.CommandPath()),
+		Aliases: []string{"condition", "cond"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := Conditions(cmd, KubernetesConfigFlags, args); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+	KubernetesConfigFlags.AddFlags(cmdConditions.Flags())
+	cmdConditions.Flags().BoolP("tree", "t", false, treeShort)
+	cmdConditions.Flags().BoolP("node-tree", "", false, nodetreeShort)
+	addCommonFlags(cmdConditions)
+	rootCmd.AddCommand(cmdConditions)
 
 	// cpu
 	var cmdCPU = &cobra.Command{
@@ -365,6 +386,31 @@ func InitSubCommands(rootCmd *cobra.Command) {
 	addCommonFlags(cmdStatus)
 	rootCmd.AddCommand(cmdStatus)
 
+	// node
+	var cmdNode = &cobra.Command{
+		Use:     "node",
+		Short:   nodeShort,
+		Long:    fmt.Sprintf("%s\n\n%s", nodeShort, nodeDescription),
+		Example: fmt.Sprintf(nodeExample, rootCmd.CommandPath()),
+		Aliases: []string{"nodes", "no"},
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := NodeResources(cmd, KubernetesConfigFlags, args); err != nil {
+				return err
+			}
+			return nil
+		},
+	}
+	KubernetesConfigFlags.AddFlags(cmdNode.Flags())
+	cmdNode.Flags().BoolP("usage", "u", false, "Show actual resource usage from metrics-server")
+	cmdNode.Flags().BoolP("compute-class", "C", false, "Show the GKE compute class (cloud.google.com/compute-class label)")
+	cmdNode.Flags().BoolP("overallocated", "", false, "Show only nodes where CPU or memory limits exceed allocatable capacity")
+	cmdNode.Flags().StringP("class", "", "", "Filter nodes by GKE compute class (cloud.google.com/compute-class label)")
+	addCommonFlags(cmdNode)
+	rootCmd.AddCommand(cmdNode)
+
+	// completion
+	rootCmd.AddCommand(Completion(rootCmd))
+
 	// version
 	var cmdVersion = &cobra.Command{
 		Use:   "version",
@@ -421,6 +467,7 @@ func addCommonFlags(cmdObj *cobra.Command) {
 	cmdObj.Flags().StringP("filename", "f", "", `read pod information from this yaml file instead`)
 	cmdObj.Flags().StringP("columns", "", "", `list of column names to show in the table output, all other columns are hidden`)
 	cmdObj.Flags().StringP("color", "", "", `Add some much needed colour to the table output. string can be one of: columns, custom, errors, mix and none (overrides env variable ICE_COLOUR)`)
+	cmdObj.Flags().BoolP("watch", "w", false, "Watch for pod changes and reprint the table on each event")
 }
 
 func processCommonFlags(cmd *cobra.Command) (commonFlags, error) {
@@ -578,12 +625,15 @@ func processCommonFlags(cmd *cobra.Command) (commonFlags, error) {
 		f.showColumnByName = cmd.Flag("columns").Value.String()
 	}
 
-	// check and set coluring type to use, we also check for both spellings of colour
-	colourOut := ""
-	// check environment vars first
-	colourOut = os.Getenv("ICE_COLOR")
+	if cmd.Flag("watch") != nil {
+		if cmd.Flag("watch").Value.String() == "true" {
+			f.watch = true
+		}
+	}
 
-	//then allow overiding with flags
+	// check and set coluring type to use, we also check for both spellings of colour
+	colourOut := os.Getenv("ICE_COLOR")
+
 	if cmd.Flag("color") != nil {
 		if len(cmd.Flag("color").Value.String()) > 0 {
 			colourOut = cmd.Flag("color").Value.String()
@@ -591,7 +641,6 @@ func processCommonFlags(cmd *cobra.Command) (commonFlags, error) {
 	}
 
 	if len(colourOut) > 0 {
-		// we use a switch to match --colour flag so I can expand in future
 		colourEnv := strings.ToLower(colourOut)
 		colourSet := strings.Split(colourEnv, ";")
 
@@ -605,7 +654,6 @@ func processCommonFlags(cmd *cobra.Command) (commonFlags, error) {
 		case "none":
 			f.outputAsColour = COLOUR_NONE
 		case "custom":
-			// f.outputAsColour = COLOUR_CUSTOM
 			f.useTheseColours, f.outputAsColour, err = getColourSetFromString(colourSet[1:])
 			if err != nil {
 				return commonFlags{}, err
