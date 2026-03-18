@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -128,6 +129,78 @@ func TestHideColumn(t *testing.T) {
 		}
 	}
 
+}
+
+// *****************
+// Sprint / Fprint (strings.Builder path)
+// *****************
+
+func TestTableSprint(t *testing.T) {
+	tbl := Table{}
+	tbl.SetHeader("NAME", "STATUS")
+	tbl.AddRow(NewCellText("pod-a"), NewCellText("Running"))
+	tbl.AddRow(NewCellText("pod-b"), NewCellText("Pending"))
+
+	out := tbl.Sprint()
+
+	if !strings.Contains(out, "NAME") {
+		t.Error("output missing header NAME")
+	}
+	if !strings.Contains(out, "pod-a") {
+		t.Error("output missing row pod-a")
+	}
+	if !strings.Contains(out, "pod-b") {
+		t.Error("output missing row pod-b")
+	}
+	if !strings.Contains(out, "Running") {
+		t.Error("output missing value Running")
+	}
+}
+
+func TestTableSprintMultipleCalls(t *testing.T) {
+	// Sprint must be idempotent — calling it twice should return the same output
+	tbl := Table{}
+	tbl.SetHeader("A", "B")
+	tbl.AddRow(NewCellText("x"), NewCellText("y"))
+
+	first := tbl.Sprint()
+	second := tbl.Sprint()
+
+	if first != second {
+		t.Error("Sprint() not idempotent — consecutive calls returned different output")
+	}
+}
+
+func TestTableSprintHiddenColumn(t *testing.T) {
+	tbl := Table{}
+	tbl.SetHeader("VISIBLE", "HIDDEN")
+	tbl.HideColumn(1)
+	tbl.AddRow(NewCellText("show"), NewCellText("hide"))
+
+	out := tbl.Sprint()
+
+	if !strings.Contains(out, "show") {
+		t.Error("visible column value missing from output")
+	}
+	if strings.Contains(out, "hide") {
+		t.Error("hidden column value should not appear in output")
+	}
+}
+
+func TestTableSprintUnicode(t *testing.T) {
+	// Verify utf8.RuneCountInString path: unicode chars must not break column alignment
+	tbl := Table{}
+	tbl.SetHeader("NAME")
+	tbl.AddRow(NewCellText("日本語テスト"))
+	tbl.AddRow(NewCellText("ascii"))
+
+	out := tbl.Sprint()
+	if !strings.Contains(out, "日本語テスト") {
+		t.Error("unicode value missing from output")
+	}
+	if !strings.Contains(out, "ascii") {
+		t.Error("ascii value missing from output")
+	}
 }
 
 func TestHideColumnPanic(t *testing.T) {

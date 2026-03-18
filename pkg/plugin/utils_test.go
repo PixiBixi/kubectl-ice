@@ -146,6 +146,36 @@ func TestValidateFloat64(t *testing.T) {
 }
 
 // *******************
+// setColourValue
+// *******************
+type setColourValueTest struct {
+	value    int
+	expected [2]int
+}
+
+var setColourValueTests = []setColourValueTest{
+	// green: 0–50
+	{0, colourOk},
+	{1, colourOk},
+	{50, colourOk},
+	// orange: 51–75
+	{51, colourWarn},
+	{75, colourWarn},
+	// red: 76+
+	{76, colourBad},
+	{90, colourBad},
+	{100, colourBad},
+}
+
+func TestSetColourValue(t *testing.T) {
+	for _, test := range setColourValueTests {
+		if output := setColourValue(test.value); output != test.expected {
+			t.Errorf("setColourValue(%d) = %v, want %v", test.value, output, test.expected)
+		}
+	}
+}
+
+// *******************
 // portAsString
 // *******************
 type portAsStringTest struct {
