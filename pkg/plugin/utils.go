@@ -37,36 +37,41 @@ func skipContainerName(flagList commonFlags, containerName string) bool {
 
 }
 
-// returns a memory multiplier that matches the byteType string
-func memoryGetUnitLst(byteType string) (int64, string) {
-	// Ki | Mi | Gi | Ti | Pi | Ei = 1024 = 1Ki
-	// m "" k | M | G | T | P | E = 1000 = 1k
-	var d int64 = 1000 // decimal
-	var b int64 = 1024 // binary
+// memUnit holds a memory unit multiplier and its canonical name.
+type memUnit struct {
+	multiplier int64
+	name       string
+}
 
-	memSizes := map[string]int64{
+// memUnitLookup is a package-level, lowercase-keyed lookup table built once at init.
+var memUnitLookup map[string]memUnit
+
+func init() {
+	var b int64 = 1024 // binary (IEC)
+	var d int64 = 1000 // decimal (SI)
+	raw := map[string]int64{
 		"Ki": b, "Mi": b * b, "Gi": b * b * b, "Ti": b * b * b * b, "Pi": b * b * b * b * b, "Ei": b * b * b * b * b * b,
-
 		"k": d, "M": d * d, "G": d * d * d, "T": d * d * d * d, "P": d * d * d * d * d, "E": d * d * d * d * d * d,
 		"KB": d, "MB": d * d, "GB": d * d * d, "TB": d * d * d * d, "PB": d * d * d * d * d, "EB": d * d * d * d * d * d,
 	}
-
-	// limit to two characters
-	if len([]rune(byteType)) > 2 {
-		byteType = byteType[0:2]
+	memUnitLookup = make(map[string]memUnit, len(raw))
+	for k, v := range raw {
+		memUnitLookup[strings.ToLower(k)] = memUnit{v, k}
 	}
+}
 
+// returns a memory multiplier that matches the byteType string
+func memoryGetUnitLst(byteType string) (int64, string) {
+	if len(byteType) > 2 {
+		byteType = byteType[:2]
+	}
 	if len(byteType) > 0 {
-		for k, v := range memSizes {
-			a := strings.ToLower(k)
-			b := strings.ToLower(byteType)
-			if a == b {
-				return v, k
-			}
+		if u, ok := memUnitLookup[strings.ToLower(byteType)]; ok {
+			return u.multiplier, u.name
 		}
 	}
-
-	return memSizes["M"], "M"
+	u := memUnitLookup["m"] // default: megabytes
+	return u.multiplier, u.name
 }
 
 // takes a float and converts to a nearest size with unit discriptor as a string
@@ -111,6 +116,22 @@ func outputTableAs(t Table, outType string) {
 	case "yaml":
 		t.PrintYaml()
 	}
+}
+
+// sprintTableAs returns the table as a string for the given output format
+func sprintTableAs(t Table, outType string) string {
+	switch outType {
+	case "csv":
+		return t.SprintCsv()
+	case "list":
+		return t.SprintList()
+	case "json":
+		return t.SprintJson()
+	case "yaml":
+		return t.SprintYaml()
+	default:
+		return t.Sprint()
+	}
 
 }
 
@@ -138,14 +159,14 @@ func portAsString(port intstr.IntOrString) string {
 	return ""
 }
 
-// setColourValue set the colour by value, currently 0-74=good, 75-89=warning, 76-100=bad
+// setColourValue set the colour by value: 0-50=good, 51-75=warning, 76+=bad
 func setColourValue(value int) [2]int {
 	var colour [2]int
 
 	colour = colourOk
-	if value > 90 {
+	if value > 75 {
 		colour = colourBad
-	} else if value > 75 {
+	} else if value > 50 {
 		colour = colourWarn
 	}
 

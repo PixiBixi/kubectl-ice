@@ -3,8 +3,11 @@ package plugin
 import (
 	"errors"
 	"fmt"
+	"io"
 	"math"
+	"os"
 	"strings"
+	"unicode/utf8"
 )
 
 // sets the maximum number of spaces allowed in a column, spaces are clipped to this number
@@ -76,7 +79,7 @@ func (t *Table) AddRow(row ...Cell) {
 	}
 
 	for i := 0; i < t.headCount; i++ {
-		strLen := len([]rune(row[i].text))
+		strLen := utf8.RuneCountInString(row[i].text)
 		if row[i].indent > 0 {
 			strLen += t.indentLen(row[i].indent)
 		}
@@ -174,13 +177,13 @@ func (t *Table) HideOnlyNamedColumns(columnName []string) error {
 	return nil
 }
 
-// Print outputs the table on the terminal, taking the column order and visibiliy into account
-func (t *Table) Print() {
+// Fprint outputs the table to w, taking the column order and visibility into account
+func (t *Table) Fprint(w io.Writer) {
 	var cellcolour [2]int
 	var withColour bool
 	var visibleColumns int
 
-	headLine := ""
+	var headLineBuf strings.Builder
 	colourArray := make([][2]int, t.headCount)
 
 	switch t.ColourOutput {
@@ -237,7 +240,7 @@ func (t *Table) Print() {
 		visibleColumns += 1
 
 		word := t.head[idx].title
-		runelen := len([]rune(word))
+		runelen := utf8.RuneCountInString(word)
 
 		if len(word) == 0 {
 			word = "-"
@@ -248,17 +251,19 @@ func (t *Table) Print() {
 		}
 		pad := strings.Repeat(" ", t.head[idx].columnLength-runelen)
 
-		headLine += fmt.Sprint(word, pad)
+		headLineBuf.WriteString(word)
+		headLineBuf.WriteString(pad)
 	}
 	// print the header in one long line
-	fmt.Println(strings.TrimRight(headLine, " "))
+	fmt.Fprintln(w, strings.TrimRight(headLineBuf.String(), " "))
 
 	// loop through each row
+	var lineBuf strings.Builder
 	for r := 0; r < len(t.data); r++ {
 		var row []Cell
 
 		visibleColumns = 0
-		line := ""
+		lineBuf.Reset()
 		excludeRow := false
 		rowNum := t.rowOrder[r]
 
@@ -294,9 +299,12 @@ func (t *Table) Print() {
 				case COLOUR_CUSTOMMIX:
 					fallthrough
 				case COLOUR_MIX:
-					// override if we should mix colours
+					// semantic cells override the wheel; plain cells get no color
+					// (headers keep the wheel for column identification)
 					if cell.colour[0] > 0 {
 						cellcolour = cell.colour
+					} else {
+						cellcolour[0] = -1
 					}
 				}
 			}
@@ -309,7 +317,7 @@ func (t *Table) Print() {
 
 			origtxt := t.indentText(cell.indent, cell.text)
 			celltxt := origtxt
-			spaceCount := t.head[idx].columnLength - len([]rune(origtxt))
+			spaceCount := t.head[idx].columnLength - utf8.RuneCountInString(origtxt)
 			if spaceCount <= 0 {
 				spaceCount = maxLineLength
 			}
@@ -321,59 +329,67 @@ func (t *Table) Print() {
 				celltxt = fmt.Sprintf("\033[%d;%dm%s%s", cellcolour[1], cellcolour[0], origtxt, colourEnd)
 			}
 
-			line += fmt.Sprint(celltxt, pad)
+			lineBuf.WriteString(celltxt)
+			lineBuf.WriteString(pad)
 		}
 		if !excludeRow {
-			fmt.Println(strings.TrimRight(line, " "))
+			fmt.Fprintln(w, strings.TrimRight(lineBuf.String(), " "))
 		}
 	}
-
 }
 
-// PrintJson outputs the table on the terminal as json, all fileds are shown and all are unsorted as
-// programs like jq can be used to filter and sort
-func (t *Table) PrintJson() {
-	// loop through each row
-	fmt.Println("{\"data\":[")
+// Print outputs the table to stdout
+func (t *Table) Print() { t.Fprint(os.Stdout) }
+
+// Sprint returns the table as a string
+func (t *Table) Sprint() string {
+	var sb strings.Builder
+	t.Fprint(&sb)
+	return sb.String()
+}
+
+// FprintJson outputs the table to w as json
+func (t *Table) FprintJson(w io.Writer) {
+	fmt.Fprintln(w, "{\"data\":[")
 	for rowNum := 0; rowNum < len(t.data); rowNum++ {
 		line := "{"
 		row := t.data[rowNum]
-		// now loop through each column for the currently selected row
 		for col := 0; col < t.headCount; col++ {
 			word := row[col].text
 			if len(word) == 0 {
 				word = ""
 			}
 			line += fmt.Sprintf("\"%s\": \"%s\"", t.head[col].title, word)
-			// add , to the end of every key/value except the last
 			if col+1 < t.headCount {
 				line += ", "
 			}
 		}
-
 		line += "}"
-		// again add the , to end of every line except the last
 		if rowNum+1 < len(t.data) {
 			line += ", "
 		}
-
-		fmt.Println(line)
+		fmt.Fprintln(w, line)
 	}
-	fmt.Println("]}")
-
+	fmt.Fprintln(w, "]}")
 }
 
-// PrintYaml outputs the table on the terminal as yaml, all fileds are shown and all are unsorted as
-// other programs can be used to filter and sort
-func (t *Table) PrintYaml() {
-	// loop through each row
-	fmt.Println("data:")
+// PrintJson outputs the table to stdout as json
+func (t *Table) PrintJson() { t.FprintJson(os.Stdout) }
+
+// SprintJson returns the table as a json string
+func (t *Table) SprintJson() string {
+	var sb strings.Builder
+	t.FprintJson(&sb)
+	return sb.String()
+}
+
+// FprintYaml outputs the table to w as yaml
+func (t *Table) FprintYaml(w io.Writer) {
+	fmt.Fprintln(w, "data:")
 	for rowNum := 0; rowNum < len(t.data); rowNum++ {
 		line := ""
 		sep := "-"
-
 		row := t.data[rowNum]
-		// now loop through each column for the currently selected row
 		for col := 0; col < t.headCount; col++ {
 			word := row[col].text
 			if len(word) == 0 {
@@ -382,71 +398,86 @@ func (t *Table) PrintYaml() {
 			line += fmt.Sprintf("%s %s: \"%s\"\n", sep, t.head[col].title, word)
 			sep = " "
 		}
-		fmt.Print(line)
+		fmt.Fprint(w, line)
 	}
-
 }
 
-// PrintList outputs the key and value on a single line by its self. all fileds are shown and all are unsorted as
-// other programs can be used to filter and sort
-func (t *Table) PrintList() {
-	// loop through each row
+// PrintYaml outputs the table to stdout as yaml
+func (t *Table) PrintYaml() { t.FprintYaml(os.Stdout) }
+
+// SprintYaml returns the table as a yaml string
+func (t *Table) SprintYaml() string {
+	var sb strings.Builder
+	t.FprintYaml(&sb)
+	return sb.String()
+}
+
+// FprintList outputs the table to w as key: value pairs
+func (t *Table) FprintList(w io.Writer) {
 	for rowNum := 0; rowNum < len(t.data); rowNum++ {
 		row := t.data[rowNum]
-		// now loop through each column for the currently selected row
 		for col := 0; col < t.headCount; col++ {
 			word := row[col].text
 			if len(word) == 0 {
 				word = ""
 			}
-			fmt.Println(t.head[col].title+":", word)
+			fmt.Fprintln(w, t.head[col].title+":", word)
 		}
 	}
 }
 
-// PrintCsv outputs the table as a csv including the header row. all fileds are shown and all are unsorted as
-// other programs can be used to filter and sort
-func (t *Table) PrintCsv() {
+// PrintList outputs the table to stdout as key: value pairs
+func (t *Table) PrintList() { t.FprintList(os.Stdout) }
 
+// SprintList returns the table as a list string
+func (t *Table) SprintList() string {
+	var sb strings.Builder
+	t.FprintList(&sb)
+	return sb.String()
+}
+
+// FprintCsv outputs the table to w as CSV
+func (t *Table) FprintCsv(w io.Writer) {
 	if len(t.data) <= 0 {
 		return
 	}
 
 	line := ""
 	row := t.data[0]
-	// now loop through each column for the currently selected row
 	for col := 0; col < t.headCount; col++ {
-		word := row[col].text
-		if len(word) == 0 {
-			word = ""
-		}
 		line += fmt.Sprintf("\"%s\"", t.head[col].title)
-		// add , to the end of every column name except the last
 		if col+1 < t.headCount {
 			line += ", "
 		}
 	}
-	fmt.Println(line)
+	fmt.Fprintln(w, line)
+	_ = row
 
-	// loop through each column to get the column names
 	for rowNum := 0; rowNum < len(t.data); rowNum++ {
 		line := ""
 		row := t.data[rowNum]
-		// now loop through each column for the currently selected row
 		for col := 0; col < t.headCount; col++ {
 			word := row[col].text
 			if len(word) == 0 {
 				word = ""
 			}
 			line += fmt.Sprintf("\"%s\"", word)
-			// add , to the end of every key/value except the last
 			if col+1 < t.headCount {
 				line += ", "
 			}
 		}
-
-		fmt.Println(line)
+		fmt.Fprintln(w, line)
 	}
+}
+
+// PrintCsv outputs the table to stdout as CSV
+func (t *Table) PrintCsv() { t.FprintCsv(os.Stdout) }
+
+// SprintCsv returns the table as a CSV string
+func (t *Table) SprintCsv() string {
+	var sb strings.Builder
+	t.FprintCsv(&sb)
+	return sb.String()
 }
 
 // sort Sorts via the column number, uses the full column count including hidden columns
