@@ -71,7 +71,7 @@ kubectl krew install pixibixi/ice
 update with
 ```shell
 kubectl krew update
-kubectl krew upgrade pixibixi/ice
+kubectl krew upgrade ice
 ```
 dont have krew? check it out here [https://github.com/GoogleContainerTools/krew](https://github.com/GoogleContainerTools/krew)
 
