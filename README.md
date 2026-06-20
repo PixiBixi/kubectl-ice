@@ -59,20 +59,19 @@ https://nimblearchitect.github.io/kubectl-ice
 # Installation
 ## Install using krew (custom index)
 
-Each tagged release commits `plugins/ice.yaml` to this repo, so the repo itself
-is a krew custom index.
+This plugin is published to the [PixiBixi krew custom index](https://github.com/PixiBixi/krew-index).
 
 ```shell
 # remove the upstream plugin first if installed (same kubectl-ice binary name)
 kubectl krew uninstall ice
 
-kubectl krew index add pixibixi-ice https://github.com/PixiBixi/kubectl-ice.git
-kubectl krew install pixibixi-ice/ice
+kubectl krew index add pixibixi https://github.com/PixiBixi/krew-index.git
+kubectl krew install pixibixi/ice
 ```
 update with
 ```shell
 kubectl krew update
-kubectl krew upgrade pixibixi-ice/ice
+kubectl krew upgrade pixibixi/ice
 ```
 dont have krew? check it out here [https://github.com/GoogleContainerTools/krew](https://github.com/GoogleContainerTools/krew)
 
