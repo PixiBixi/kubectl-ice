@@ -50,16 +50,29 @@ Full documentation can be found over at:
 
 https://nimblearchitect.github.io/kubectl-ice
 
-# Installation
-## Install using krew
+ > **PixiBixi maintained fork.** This is a maintained fork of
+ > [NimbleArchitect/kubectl-ice](https://github.com/NimbleArchitect/kubectl-ice)
+ > (Apache 2.0) adding watch mode, node/conditions/completion commands and
+ > performance improvements. It is distributed through its own krew custom
+ > index (this repo), not the official krew-index.
 
+# Installation
+## Install using krew (custom index)
+
+Each tagged release commits `plugins/ice.yaml` to this repo, so the repo itself
+is a krew custom index.
+
+```shell
+# remove the upstream plugin first if installed (same kubectl-ice binary name)
+kubectl krew uninstall ice
+
+kubectl krew index add pixibixi https://github.com/PixiBixi/kubectl-ice.git
+kubectl krew install pixibixi/ice
 ```
-$ kubectl krew install ice
-```
-update with 
-```
-$ kubectl krew update
-$ kubectl krew upgrade ice
+update with
+```shell
+kubectl krew update
+kubectl krew upgrade pixibixi/ice
 ```
 dont have krew? check it out here [https://github.com/GoogleContainerTools/krew](https://github.com/GoogleContainerTools/krew)
 
