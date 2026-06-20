@@ -1,29 +1,78 @@
-project_name: kubectl-ice
-release:
-  github:
-    owner: NimbleArchitect
-    name: kubectl-ice
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - go mod verify
+
 builds:
   - id: kubectl-ice
-    goos:
-    - linux
-    - windows
-    - darwin
-    goarch:
-    - amd64
-    - "386"
-    - arm64
+    binary: kubectl-ice
+    main: ./cmd/plugin/main.go
     env:
       - CGO_ENABLED=0
-      - GO111MODULE=on
-    main: cmd/plugin/main.go
-    ldflags: -s -w
-      -X github.com/NimbleArchitect/kubectl-ice/cmd/plugin/cli.version={{ .Version }}
+    goos: [linux, darwin]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w
+      - -X github.com/NimbleArchitect/kubectl-ice/cmd/plugin/cli.version={{ .Version }}
+
 archives:
-  - id: kubectl-ice
-    builds:
-    - kubectl-ice
-    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
-    format_overrides:
-    - goos: windows
-      format: zip
+  - id: default
+    ids: [kubectl-ice]
+    formats: [tar.gz]
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- .Version }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else }}{{ .Arch }}{{ end }}
+    files:
+      - README.md
+      - LICENSE*
+
+krews:
+  - name: ice
+    ids: [default]
+    repository:
+      owner: PixiBixi
+      name: kubectl-ice
+      branch: main
+    homepage: "https://github.com/PixiBixi/kubectl-ice"
+    short_description: "View configuration settings of containers inside Pods"
+    description: |
+      ice lets you peer inside a Pod and easily see Volume, Image, Port and Exec
+      configurations, along with CPU and Memory metrics all at the container
+      level (requires metrics server). PixiBixi maintained fork with watch mode,
+      node/conditions/completion commands and performance improvements.
+    caveats: "Run 'kubectl ice completion install' to enable shell completion."
+    skip_upload: auto
+
+checksum:
+  name_template: 'checksums.txt'
+
+snapshot:
+  version_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude: ['^docs:', '^test:', '^chore:', 'typo']
+  groups:
+    - title: Features
+      regexp: '^feat'
+      order: 0
+    - title: Bug Fixes
+      regexp: '^fix'
+      order: 1
+    - title: Others
+      order: 999
+
+release:
+  github:
+    owner: PixiBixi
+    name: kubectl-ice
+  name_template: "{{ .ProjectName }} {{ .Version }}"
+  draft: false
+  prerelease: auto
+  mode: replace
