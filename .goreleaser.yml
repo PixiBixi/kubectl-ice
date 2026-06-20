@@ -36,8 +36,9 @@ krews:
     ids: [default]
     repository:
       owner: PixiBixi
-      name: kubectl-ice
+      name: krew-index
       branch: main
+      token: "{{ .Env.KREW_INDEX_TOKEN }}"
     homepage: "https://github.com/PixiBixi/kubectl-ice"
     short_description: "View configuration settings of containers inside Pods"
     description: |

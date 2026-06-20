@@ -26,6 +26,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          KREW_INDEX_TOKEN: ${{ secrets.KREW_INDEX_TOKEN }}
 
       # Phase 2 — publish to the official krew-index. Disabled: name `ice`
       # collides with the upstream plugin. This repo is its own krew index
