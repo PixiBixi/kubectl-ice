@@ -66,13 +66,13 @@ is a krew custom index.
 # remove the upstream plugin first if installed (same kubectl-ice binary name)
 kubectl krew uninstall ice
 
-kubectl krew index add pixibixi https://github.com/PixiBixi/kubectl-ice.git
-kubectl krew install pixibixi/ice
+kubectl krew index add pixibixi-ice https://github.com/PixiBixi/kubectl-ice.git
+kubectl krew install pixibixi-ice/ice
 ```
 update with
 ```shell
 kubectl krew update
-kubectl krew upgrade pixibixi/ice
+kubectl krew upgrade pixibixi-ice/ice
 ```
 dont have krew? check it out here [https://github.com/GoogleContainerTools/krew](https://github.com/GoogleContainerTools/krew)
 
