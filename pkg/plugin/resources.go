@@ -260,14 +260,14 @@ func (s *resource) BuildBranch(info BuilderInformation, rows [][]Cell) ([]Cell, 
 }
 
 func (s *resource) BuildContainerSpec(container v1.Container, info BuilderInformation) ([][]Cell, error) {
-	metrics := s.MetricsResource[info.PodName][info.Name]
+	metrics := s.MetricsResource[info.Namespace+"/"+info.PodName][info.Name]
 	out := make([][]Cell, 1)
 	out[0] = s.statsProcessTableRow(container.Resources, metrics, info, s.ResourceType)
 	return out, nil
 }
 
 func (s *resource) BuildEphemeralContainerSpec(container v1.EphemeralContainer, info BuilderInformation) ([][]Cell, error) {
-	metrics := s.MetricsResource[info.PodName][info.Name]
+	metrics := s.MetricsResource[info.Namespace+"/"+info.PodName][info.Name]
 	out := make([][]Cell, 1)
 	out[0] = s.statsProcessTableRow(container.Resources, metrics, info, s.ResourceType)
 	return out, nil
@@ -425,9 +425,12 @@ func (s *resource) podMetrics2Hashtable(stateList []v1beta1.PodMetrics) map[stri
 	podState := make(map[string]map[string]v1.ResourceList)
 
 	for _, pod := range stateList {
-		podState[pod.Name] = make(map[string]v1.ResourceList)
+		// key by namespace+name: with -A, StatefulSet pods share a name
+		// across namespaces (e.g. thanos-receive-0) and would otherwise collide
+		key := pod.Namespace + "/" + pod.Name
+		podState[key] = make(map[string]v1.ResourceList)
 		for _, container := range pod.Containers {
-			podState[pod.Name][container.Name] = container.Usage
+			podState[key][container.Name] = container.Usage
 		}
 	}
 	return podState
