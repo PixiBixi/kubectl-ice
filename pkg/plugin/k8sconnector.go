@@ -163,30 +163,23 @@ func (c *Connector) GetPods(podNameList []string) ([]v1.Pod, error) {
 
 }
 
-func (c *Connector) GetPodAnnotations(podList []v1.Pod) (map[string]map[string]string, error) {
-	//
-	annotationsMap := make(map[string]map[string]string)
-
-	for _, pod := range c.podList {
-		podName := pod.Name
-		annotations := pod.Annotations
-		annotationsMap[podName] = annotations
+// podMetaMap keys the extracted per-pod metadata by namespace+name so that
+// identically-named pods across namespaces (e.g. StatefulSet thanos-receive-0
+// listed with -A) do not overwrite each other.
+func podMetaMap(podList []v1.Pod, extract func(v1.Pod) map[string]string) map[string]map[string]string {
+	out := make(map[string]map[string]string, len(podList))
+	for _, pod := range podList {
+		out[pod.Namespace+"/"+pod.Name] = extract(pod)
 	}
+	return out
+}
 
-	return annotationsMap, nil
+func (c *Connector) GetPodAnnotations(podList []v1.Pod) (map[string]map[string]string, error) {
+	return podMetaMap(podList, func(p v1.Pod) map[string]string { return p.Annotations }), nil
 }
 
 func (c *Connector) GetPodLabels(podList []v1.Pod) (map[string]map[string]string, error) {
-	//
-	labelMap := make(map[string]map[string]string)
-
-	for _, pod := range c.podList {
-		podName := pod.Name
-		labels := pod.Labels
-		labelMap[podName] = labels
-	}
-
-	return labelMap, nil
+	return podMetaMap(podList, func(p v1.Pod) map[string]string { return p.Labels }), nil
 }
 
 func (c *Connector) GetNodeLabels(podList []v1.Pod) (map[string]map[string]string, error) {

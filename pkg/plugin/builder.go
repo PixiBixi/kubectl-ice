@@ -340,10 +340,10 @@ func (b *RowBuilder) setValuesAnnotationLabel(pod v1.Pod) {
 		b.labelNodeValue = b.annotationLabel["label"]["node"][pod.Spec.NodeName][b.LabelNodeName]
 	}
 	if b.LabelPodName != "" {
-		b.labelPodValue = b.annotationLabel["label"]["pod"][pod.Name][b.LabelPodName]
+		b.labelPodValue = b.annotationLabel["label"]["pod"][pod.Namespace+"/"+pod.Name][b.LabelPodName]
 	}
 	if b.AnnotationPodName != "" {
-		b.annotationPodValue = b.annotationLabel["annotation"]["pod"][pod.Name][b.AnnotationPodName]
+		b.annotationPodValue = b.annotationLabel["annotation"]["pod"][pod.Namespace+"/"+pod.Name][b.AnnotationPodName]
 	}
 
 }
