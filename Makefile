@@ -9,6 +9,9 @@ test:
 bin: fmt vet
 	go build -o bin/kubectl-ice github.com/NimbleArchitect/kubectl-ice/cmd/plugin
 
+.PHONY: build
+build: bin
+
 .PHONY: fmt
 fmt:
 	go fmt ./pkg/... ./cmd/...
