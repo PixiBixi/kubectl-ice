@@ -585,7 +585,7 @@ func (c *Connector) LoadReplicaSet(replicaNameList []string, namespace string) e
 	log.Debug("Start")
 
 	selector := metav1.ListOptions{}
-	if len(c.replicaList[namespace]) == 0 {
+	if c.replicaList == nil {
 		c.replicaList = make(map[string][]a1.ReplicaSet)
 	}
 
@@ -651,7 +651,7 @@ func (c *Connector) LoadDeployment(deploymentNameList []string, namespace string
 	log.Debug("Start")
 
 	selector := metav1.ListOptions{}
-	if len(c.deploymentList[namespace]) == 0 {
+	if c.deploymentList == nil {
 		c.deploymentList = make(map[string][]a1.Deployment)
 	}
 
@@ -718,7 +718,7 @@ func (c *Connector) LoadDaemonSet(daemonNameList []string, namespace string) err
 	log.Debug("Start")
 
 	selector := metav1.ListOptions{}
-	if len(c.daemonList[namespace]) == 0 {
+	if c.daemonList == nil {
 		c.daemonList = make(map[string][]a1.DaemonSet)
 	}
 
@@ -785,7 +785,7 @@ func (c *Connector) LoadStatefulSet(statefulNameList []string, namespace string)
 	log.Debug("Start")
 
 	selector := metav1.ListOptions{}
-	if len(c.statefulList[namespace]) == 0 {
+	if c.statefulList == nil {
 		c.statefulList = make(map[string][]a1.StatefulSet)
 	}
 
@@ -852,7 +852,7 @@ func (c *Connector) LoadJob(jobNameList []string, namespace string) error {
 	log.Debug("Start")
 
 	selector := metav1.ListOptions{}
-	if len(c.jobList[namespace]) == 0 {
+	if c.jobList == nil {
 		c.jobList = make(map[string][]batchv1.Job)
 	}
 
@@ -919,7 +919,7 @@ func (c *Connector) LoadCronJob(jobNameList []string, namespace string) error {
 	log.Debug("Start")
 
 	selector := metav1.ListOptions{}
-	if len(c.cronJobList[namespace]) == 0 {
+	if c.cronJobList == nil {
 		c.cronJobList = make(map[string][]batchv1.CronJob)
 	}
 
