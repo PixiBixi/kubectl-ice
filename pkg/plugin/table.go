@@ -6,6 +6,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"slices"
 	"strings"
 	"unicode/utf8"
 )
@@ -487,73 +488,40 @@ func (t *Table) sort(list []int, columnNumber int, ascending bool) {
 	// rather then reordering all rows we have an order array that we can loop through
 	// sort contains the actual row number to use next
 
-	// basic bubble sort is used
-	for i := 0; i < t.currentRow+1; i++ {
-		hasMoved := false
-		for j := 0; j < t.currentRow-1; j++ {
-			var wordLow, wordHigh string
-			var intLow, intHigh int64
-			var floatHigh, floatLow float64
+	// must stay stable: SortByNames calls us once per column and relies on earlier
+	// columns keeping their relative order. Do NOT swap for slices.SortFunc.
+	slices.SortStableFunc(list, func(a, b int) int {
+		cellA := t.data[a][columnNumber]
+		cellB := t.data[b][columnNumber]
 
-			switchOrder := false
-			jLow := list[j]
-			jHigh := list[j+1]
-
-			switch t.data[jLow][columnNumber].typ {
-			case 0:
-				wordLow = t.data[jLow][columnNumber].text
-				wordHigh = t.data[jHigh][columnNumber].text
-			case 1:
-				intLow = t.data[jLow][columnNumber].number
-				intHigh = t.data[jHigh][columnNumber].number
-			case 2:
-				floatLow = t.data[jLow][columnNumber].float
-				floatHigh = t.data[jHigh][columnNumber].float
+		var order int
+		switch cellA.typ {
+		case 0:
+			order = strings.Compare(cellA.text, cellB.text)
+		case 1:
+			switch {
+			case cellA.number < cellB.number:
+				order = -1
+			case cellA.number > cellB.number:
+				order = 1
 			}
-
-			if ascending {
-				switch t.data[jLow][columnNumber].typ {
-				case 0:
-					if wordLow > wordHigh {
-						switchOrder = true
-					}
-				case 1:
-					if intLow > intHigh {
-						switchOrder = true
-					}
-				case 2:
-					if floatLow > floatHigh {
-						switchOrder = true
-					}
-				}
-			} else {
-				switch t.data[jLow][columnNumber].typ {
-				case 0:
-					if wordLow < wordHigh {
-						switchOrder = true
-					}
-				case 1:
-					if intLow < intHigh {
-						switchOrder = true
-					}
-				case 2:
-					if floatLow < floatHigh {
-						switchOrder = true
-					}
-				}
-			}
-
-			if switchOrder {
-				hasMoved = true
-				list[j] = jHigh
-				list[j+1] = jLow
+		case 2:
+			// explicit compares, not cmp.Compare: cmp orders NaN below every value, which
+			// would reshuffle rows the old sort left untouched. Metrics can divide by zero.
+			switch {
+			case cellA.float < cellB.float:
+				order = -1
+			case cellA.float > cellB.float:
+				order = 1
 			}
 		}
-		if !hasMoved {
-			break
-		}
-	}
+		// typ 3 (placeholder) falls through as equal, as it did before
 
+		if !ascending {
+			return -order
+		}
+		return order
+	})
 }
 
 // SortByNames given a , seperated list of names match them to actual headers and sort each one in order
