@@ -318,8 +318,7 @@ func nodeReadyStatus(node v1.Node) string {
 func nodeRoles(node v1.Node) string {
 	var roles []string
 	for label := range node.Labels {
-		if strings.HasPrefix(label, "node-role.kubernetes.io/") {
-			role := strings.TrimPrefix(label, "node-role.kubernetes.io/")
+		if role, ok := strings.CutPrefix(label, "node-role.kubernetes.io/"); ok {
 			if role != "" {
 				roles = append(roles, role)
 			}

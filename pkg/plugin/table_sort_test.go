@@ -83,7 +83,7 @@ func newSortTestTable(rowCount int) *Table {
 	tbl := &Table{}
 	tbl.SetHeader("NAME", "COUNT", "USED", "PLACEHOLDER")
 
-	for i := 0; i < rowCount; i++ {
+	for i := range rowCount {
 		// spread values so neither ascending nor descending is the input order
 		spread := (i*7919 + 13) % max(rowCount, 1)
 		tbl.AddRow(
@@ -99,7 +99,7 @@ func newSortTestTable(rowCount int) *Table {
 
 func TestSortMatchesBubbleSort(t *testing.T) {
 	for _, rowCount := range []int{0, 1, 2, 3, 17, 200, 1500} {
-		for column := 0; column < 4; column++ {
+		for column := range 4 {
 			for _, ascending := range []bool{true, false} {
 				tbl := newSortTestTable(rowCount)
 

@@ -56,7 +56,7 @@ func (t *Table) SetHeader(headItem ...string) {
 		t.columnOrder = []int{}
 	}
 
-	for i := 0; i < len(headItem); i++ {
+	for i := range headItem {
 		tmpHead := headerRow{}
 		tmpHead.title = headItem[i]
 		tmpHead.columnLength = len(headItem[i]) + 2
@@ -115,7 +115,7 @@ func (t *Table) Order(items ...int) {
 
 	for i := 0; i < len(t.columnOrder); i++ {
 		found := false
-		for c := 0; c < len(items); c++ {
+		for c := range items {
 			if items[c] == t.columnOrder[i] {
 				found = true
 			}
@@ -539,7 +539,7 @@ func (t *Table) SortByNames(name ...string) error {
 	}
 
 	// scan and match all column names against headers
-	for i := 0; i < len(name); i++ {
+	for i := range name {
 		rawName := strings.TrimSpace(name[i])
 		if len(rawName) <= 0 {
 			continue
@@ -568,7 +568,7 @@ func (t *Table) SortByNames(name ...string) error {
 	}
 
 	// sort each one in order
-	for i := 0; i < len(columnIds); i++ {
+	for i := range columnIds {
 		if columnFound[i] {
 			// sort function uses ascending true and descending false so we
 			// invert descending fLAG to create our ascending flag
@@ -804,7 +804,7 @@ func (t *Table) getFencesFloat(orderList []int, columnID int, rows [][]Cell) (fl
 }
 
 // getFencesBoundarys the actual function to caluclate the upper and lower boundy exclusion limit
-func (t *Table) getFencesBoundarys(orderList []int, columnID int, rows [][]Cell, cellType int) (interface{}, interface{}) {
+func (t *Table) getFencesBoundarys(orderList []int, columnID int, rows [][]Cell, cellType int) (any, any) {
 	// find middle of the list
 	var q1Int, q3Int, iqrInt int64
 	var q1Float, q3Float, iqrFloat float64

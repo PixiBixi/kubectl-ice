@@ -674,7 +674,7 @@ func splitAndFilterList(rawSortString string, filterString string) ([]string, er
 	var rawCase string
 
 	rawSortList := strings.Split(rawSortString, ",")
-	for i := 0; i < len(rawSortList); i++ {
+	for i := range rawSortList {
 		safeStr := ""
 		rawItem := strings.TrimSpace(rawSortList[i])
 		if len(rawItem) <= 0 {
@@ -684,7 +684,7 @@ func splitAndFilterList(rawSortString string, filterString string) ([]string, er
 		// current used chars in headers are A-Z ! and % nothing else is needed
 		// so pointless using regex
 		rawCase = strings.ToUpper(rawItem)
-		for _, v := range strings.Split(rawCase, "") {
+		for v := range strings.SplitSeq(rawCase, "") {
 			if strings.Contains(filterString, v) {
 				safeStr += v
 			}
@@ -709,14 +709,14 @@ func splitAndFilterMatchList(rawSortString string, filterString string, operator
 	sortList := make(map[string]matchValue)
 
 	rawSortList := strings.Split(rawSortString, ",")
-	for i := 0; i < len(rawSortList); i++ {
+	for i := range rawSortList {
 		safeStr := ""
 		rawItem := strings.TrimSpace(rawSortList[i])
 		if len(rawItem) <= 0 {
 			continue
 		}
 
-		for _, v := range strings.Split(rawItem, "") {
+		for v := range strings.SplitSeq(rawItem, "") {
 			rawCase = strings.ToUpper(v)
 			if strings.Contains(filterString, rawCase) {
 				safeStr += v
@@ -733,7 +733,7 @@ func splitAndFilterMatchList(rawSortString string, filterString string, operator
 		operator := ""
 		value := ""
 
-		for i := 0; i < len(operatorList); i++ {
+		for i := range operatorList {
 			operator = operatorList[i]
 			// check idx is 1 or more as we need at least a single charactor before the operator
 			if idx := strings.Index(safeStr, operator); idx > 0 {

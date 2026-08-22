@@ -59,7 +59,7 @@ func logGetType(logType int) (string, string) {
 	return "UNKNOWN", NoColour
 }
 
-func (l *logger) Yell(message ...interface{}) {
+func (l *logger) Yell(message ...any) {
 	id := 1
 	logPrefix, logColour := logGetType(id)
 
@@ -72,7 +72,7 @@ func (l *logger) Yell(message ...interface{}) {
 	}
 }
 
-func (l *logger) Tell(message ...interface{}) {
+func (l *logger) Tell(message ...any) {
 	id := 2
 	logPrefix, logColour := logGetType(id)
 
@@ -85,7 +85,7 @@ func (l *logger) Tell(message ...interface{}) {
 	}
 }
 
-func (l *logger) Debug(message ...interface{}) {
+func (l *logger) Debug(message ...any) {
 	// need to set colours here
 	if LogDebug {
 		id := 3
