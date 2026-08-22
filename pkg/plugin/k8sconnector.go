@@ -48,8 +48,10 @@ const TypeNameCronJob string = "CronJob"
 // const TypeName string = ""
 
 type Connector struct {
-	clientSet         kubernetes.Clientset
-	metricSet         metricsclientset.Clientset
+	// interfaces rather than the concrete Clientsets so a test can inject
+	// client-go's fake and exercise the cache logic without an api server
+	clientSet         kubernetes.Interface
+	metricSet         metricsclientset.Interface
 	Flags             commonFlags
 	configFlags       *genericclioptions.ConfigFlags
 	metricFlags       *genericclioptions.ConfigFlags
@@ -121,7 +123,6 @@ func (c *Connector) requestContext() context.Context {
 // LoadConfig builds the clientset. ctx comes from cobra and is cancelled when
 // the user interrupts, so every request below can be abandoned mid flight.
 func (c *Connector) LoadConfig(ctx context.Context, configFlags *genericclioptions.ConfigFlags) error {
-	c.clientSet = kubernetes.Clientset{}
 	c.configFlags = configFlags
 	c.ctx = ctx
 	config, err := configFlags.ToRESTConfig()
@@ -134,13 +135,12 @@ func (c *Connector) LoadConfig(ctx context.Context, configFlags *genericclioptio
 	if err != nil {
 		return fmt.Errorf("failed to create clientset: %w", err)
 	}
-	c.clientSet = *clientset
+	c.clientSet = clientset
 	return nil
 }
 
 // load config for the metrics endpoint
 func (c *Connector) LoadMetricConfig(configFlags *genericclioptions.ConfigFlags) error {
-	c.metricSet = metricsclientset.Clientset{}
 	c.metricFlags = configFlags
 	config, err := configFlags.ToRESTConfig()
 
@@ -153,7 +153,7 @@ func (c *Connector) LoadMetricConfig(configFlags *genericclioptions.ConfigFlags)
 		return fmt.Errorf("failed to create clientset for metrics: %w", err)
 	}
 
-	c.metricSet = *metricset
+	c.metricSet = metricset
 	return nil
 }
 

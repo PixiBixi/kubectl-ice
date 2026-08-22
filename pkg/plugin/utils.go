@@ -196,6 +196,10 @@ func splitColourString(colour string) (string, int, int, error) {
 	log := logger{location: "splitColourString"}
 	log.Debug("Start")
 
+	if len(colour) == 0 {
+		return "", 0, 0, errors.New("empty custom colour")
+	}
+
 	rawColour := colour
 	rawColourArray := strings.Split(rawColour, "")
 
@@ -212,6 +216,9 @@ func splitColourString(colour string) (string, int, int, error) {
 
 	// we only have a number.number to deal with
 	rawColourString := strings.Split(rawColour, ".")
+	if len(rawColourString) < 2 {
+		return "", 0, 0, errors.New("invalid custom colour, want modifier.colour")
+	}
 
 	colourMod, err = strconv.Atoi(rawColourString[0])
 	if err != nil {
