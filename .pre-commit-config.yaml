@@ -1,0 +1,21 @@
+# Local hooks rather than dnephin/pre-commit-golang: its go-vet hook resolves
+# package paths from the changed files and fails on this layout, which has no Go
+# files at the repo root. These call the same targets the CI does.
+#
+# gofmt -l is wrapped in a test because it exits 0 even when it lists files, so
+# on its own it would report every unformatted file and still let the commit through.
+repos:
+  - repo: local
+    hooks:
+      - id: go-fmt
+        name: go fmt
+        entry: bash -c 'unformatted=$(gofmt -l ./pkg ./cmd); test -z "$unformatted" || { echo "$unformatted"; exit 1; }'
+        language: system
+        types: [go]
+        pass_filenames: false
+      - id: go-vet
+        name: go vet
+        entry: go vet ./pkg/... ./cmd/...
+        language: system
+        types: [go]
+        pass_filenames: false

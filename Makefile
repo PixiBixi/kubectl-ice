@@ -3,7 +3,11 @@ export GO111MODULE=on
 
 .PHONY: test
 test:
-	go test ./pkg/... ./cmd/... -coverprofile cover.out
+	go test -race ./pkg/... ./cmd/... -coverprofile cover.out
+
+.PHONY: lint
+lint:
+	golangci-lint run
 
 .PHONY: bin
 bin: fmt vet
