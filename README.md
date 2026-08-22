@@ -29,7 +29,7 @@ ice lists detailed information about the containers present inside a
 * Most sub commands utilize aliases meaning less typing (eg command and cmd are the same)
 * Easily view securityContext details and POSIX capabilities
 * Use the show-namespace flag to output the pods namespace
-* Ability to read yaml from file or stdin for processing
+* Ability to read yaml from file or stdin for processing, supported kinds are Pod, Deployment, ReplicaSet, StatefulSet, DaemonSet, Job and CronJob (a `kind: List`, as produced by `kubectl get pods -o yaml`, is not supported)
 * Can specify columns to output for a more custom view
 * Limited colour output of some sub commands: green = ok, yellow = warning, red = bad
 
