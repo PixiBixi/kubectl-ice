@@ -93,9 +93,10 @@ func (t *Table) AddRow(row ...Cell) {
 			}
 		}
 
-		if row[i].typ == 2 {
+		switch row[i].typ {
+		case 2:
 			t.head[i].columnType = 2
-		} else if row[i].typ == 1 {
+		case 1:
 			t.head[i].columnType = 1
 		}
 	}
@@ -289,7 +290,7 @@ func (t *Table) Fprint(w io.Writer) {
 			}
 
 			if withColour { // if colour wanted
-				cellcolour = colourArray[visibleColumns] //set colour from wheel as default colour
+				cellcolour = colourArray[visibleColumns] // set colour from wheel as default colour
 				switch t.ColourOutput {
 				case COLOUR_ERRORS:
 					// override if we should only show error colours
@@ -553,7 +554,7 @@ func (t *Table) sort(list []int, columnNumber int, ascending bool) {
 	})
 }
 
-// SortByNames given a , seperated list of names match them to actual headers and sort each one in order
+// SortByNames given a , separated list of names match them to actual headers and sort each one in order
 // by default sorts in ascending to revers use ! in front of the header name
 // returns error on fail and nil otherwise
 func (t *Table) SortByNames(name ...string) error {
@@ -659,10 +660,10 @@ func NewCellEmpty() Cell {
 // NewCellText quick wrapper to return a cell object containing the given string
 func NewCellText(text string) Cell {
 
-	temp := strings.Replace(text, "\r", "\\r", -1)
-	temp = strings.Replace(temp, "\f", "\\f", -1)
-	temp = strings.Replace(temp, "\n", "\\n", -1)
-	temp = strings.Replace(temp, "\t", "\\t", -1)
+	temp := strings.ReplaceAll(text, "\r", "\\r")
+	temp = strings.ReplaceAll(temp, "\f", "\\f")
+	temp = strings.ReplaceAll(temp, "\n", "\\n")
+	temp = strings.ReplaceAll(temp, "\t", "\\t")
 
 	return Cell{
 		text:   temp,
@@ -675,10 +676,10 @@ func NewCellText(text string) Cell {
 //	tells table.go Print to indent it for us
 func NewCellTextIndent(text string, indentLevel int) Cell {
 
-	temp := strings.Replace(text, "\r", "\\r", -1)
-	temp = strings.Replace(temp, "\f", "\\f", -1)
-	temp = strings.Replace(temp, "\n", "\\n", -1)
-	temp = strings.Replace(temp, "\t", "\\t", -1)
+	temp := strings.ReplaceAll(text, "\r", "\\r")
+	temp = strings.ReplaceAll(temp, "\f", "\\f")
+	temp = strings.ReplaceAll(temp, "\n", "\\n")
+	temp = strings.ReplaceAll(temp, "\t", "\\t")
 
 	return Cell{
 		text:   temp,
@@ -710,10 +711,10 @@ func NewCellFloat(text string, value float64) Cell {
 // NewCellColourText quick wrapper to return a cell object containing the given string and the colour to be used
 func NewCellColourText(colour [2]int, text string) Cell {
 
-	temp := strings.Replace(text, "\r", "\\r", -1)
-	temp = strings.Replace(temp, "\f", "\\f", -1)
-	temp = strings.Replace(temp, "\n", "\\n", -1)
-	temp = strings.Replace(temp, "\t", "\\t", -1)
+	temp := strings.ReplaceAll(text, "\r", "\\r")
+	temp = strings.ReplaceAll(temp, "\f", "\\f")
+	temp = strings.ReplaceAll(temp, "\n", "\\n")
+	temp = strings.ReplaceAll(temp, "\t", "\\t")
 
 	return Cell{
 		text:   temp,
@@ -818,19 +819,19 @@ func (t *Table) HideRows(rowID []int) {
 	}
 }
 
-// getFencesInt given the current order and a list of rows caluclate the upper and lower boundy exclusion limit for the selected columnID
+// getFencesInt given the current order and a list of rows calculate the upper and lower boundy exclusion limit for the selected columnID
 func (t *Table) getFencesInt(orderList []int, columnID int, rows [][]Cell) (int64, int64) {
 	upper, lower := t.getFencesBoundarys(orderList, columnID, rows, 1)
 	return upper.(int64), lower.(int64)
 }
 
-// getFencesFloat given the current order and a list of rows caluclate the upper and lower boundy exclusion limit for the selected columnID
+// getFencesFloat given the current order and a list of rows calculate the upper and lower boundy exclusion limit for the selected columnID
 func (t *Table) getFencesFloat(orderList []int, columnID int, rows [][]Cell) (float64, float64) {
 	upper, lower := t.getFencesBoundarys(orderList, columnID, rows, 2)
 	return upper.(float64), lower.(float64)
 }
 
-// getFencesBoundarys the actual function to caluclate the upper and lower boundy exclusion limit
+// getFencesBoundarys the actual function to calculate the upper and lower boundy exclusion limit
 func (t *Table) getFencesBoundarys(orderList []int, columnID int, rows [][]Cell, cellType int) (any, any) {
 	// find middle of the list
 	var q1Int, q3Int, iqrInt int64
@@ -842,7 +843,7 @@ func (t *Table) getFencesBoundarys(orderList []int, columnID int, rows [][]Cell,
 	pos1 := (pos2 / 2) - 1
 	pos3 := pos2 + (pos2 / 2) - 1
 
-	if listLen&1 == 1 { //even list length
+	if listLen&1 == 1 { // even list length
 		// the middle is held by 2 items, so we grab 2 points for the 1st third
 		// and 2 points for the 3rd third
 		rowPos1 := orderList[pos1]
@@ -850,7 +851,7 @@ func (t *Table) getFencesBoundarys(orderList []int, columnID int, rows [][]Cell,
 		rowPos3 := orderList[pos3]
 		rowPos4 := orderList[pos3+1]
 
-		// grab the values of all 4 points as we need to calulate, to get a single half
+		// grab the values of all 4 points as we need to calculate, to get a single half
 		// way value for each third
 		t1Cell := rows[rowPos1][columnID]
 		t2Cell := rows[rowPos2][columnID]

@@ -43,7 +43,7 @@ type skipMemoryGetUnitLstTest struct {
 }
 
 var skipMemoryGetUnitLstTests = []skipMemoryGetUnitLstTest{
-	//all empty or invalid tests
+	// all empty or invalid tests
 	{"", 1000000, "M"},
 	{"toobig", 1000000, "M"},
 	{"1", 1000000, "M"},
@@ -53,7 +53,7 @@ var skipMemoryGetUnitLstTests = []skipMemoryGetUnitLstTest{
 	{"aa", 1000000, "M"},
 	{"AA", 1000000, "M"},
 
-	//valid tests
+	// valid tests
 	{"k", 1000, "k"},
 	{"K", 1000, "k"},
 	{"M", 1000000, "M"},
@@ -105,12 +105,12 @@ type memoryHumanReadableTest struct {
 }
 
 var skipMemoryHumanReadableTests = []memoryHumanReadableTest{
-	//all empty or invalid tests
+	// all empty or invalid tests
 	{0, "", "0"},
 	{1, "b", "0.00M"},
 	{-1, "b", "-0.00M"},
 
-	//valid tests
+	// valid tests
 	{1000000, "K", "1000.00k"},
 	{1678, "k", "1.68k"},
 	{1678 * 1024 * 1024, "m", "1759.51M"},

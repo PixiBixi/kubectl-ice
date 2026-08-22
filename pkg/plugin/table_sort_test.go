@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strconv"
 	"testing"
 )
 
@@ -88,7 +89,7 @@ func newSortTestTable(rowCount int) *Table {
 		spread := (i*7919 + 13) % max(rowCount, 1)
 		tbl.AddRow(
 			NewCellText(fmt.Sprintf("pod-%06d-container", spread)),
-			NewCellInt(fmt.Sprintf("%d", spread), int64(spread)),
+			NewCellInt(strconv.Itoa(spread), int64(spread)),
 			NewCellFloat(fmt.Sprintf("%f", float64(spread)), float64(spread)),
 			NewCellEmpty(),
 		)

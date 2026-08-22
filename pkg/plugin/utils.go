@@ -206,7 +206,7 @@ func splitColourString(colour string) (string, int, int, error) {
 		// we only have a number.number to deal with
 		prefixChar = ""
 	} else {
-		colourArray := rawColourArray[1:len(rawColourArray)]
+		colourArray := rawColourArray[1:]
 		rawColour = strings.Join(colourArray, "")
 	}
 
@@ -225,7 +225,7 @@ func splitColourString(colour string) (string, int, int, error) {
 	return prefixChar, colourCode, colourMod, nil
 }
 
-// getColourSetFromString splits the colour string into colour parts, seperated by ;
+// getColourSetFromString splits the colour string into colour parts, separated by ;
 //
 //	the colours for good, warning and bad are also set when found
 //	colourset is set to COLOUR_CUSTOM by default, if g, w or b is found in the colour then COLOUR_CUSTOMMIX is returned instead

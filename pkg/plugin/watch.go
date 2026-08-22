@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -53,7 +54,7 @@ func (m watchModel) View() string {
 // renderFn must return the table content as a string (use sprintTableAs).
 func (b *RowBuilder) WatchBuild(loop Looper, renderFn func() (string, error)) error {
 	if len(b.InputFilename) > 0 {
-		return fmt.Errorf("--watch cannot be used with --filename")
+		return errors.New("--watch cannot be used with --filename")
 	}
 
 	stdinChanged, err := b.HasStdinChanged()
@@ -61,7 +62,7 @@ func (b *RowBuilder) WatchBuild(loop Looper, renderFn func() (string, error)) er
 		return err
 	}
 	if stdinChanged {
-		return fmt.Errorf("--watch cannot be used when reading from stdin")
+		return errors.New("--watch cannot be used when reading from stdin")
 	}
 
 	// Initial build

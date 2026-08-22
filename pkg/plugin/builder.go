@@ -40,7 +40,7 @@ type RowBuilder struct {
 	ShowNodeTree       bool                  // show the tree view with the nodes at the root level rather than just the resource sets at root
 	DontListContainers bool                  // dont loop through containers, only the main pod
 	FilterList         map[string]matchValue // used to filter out rows from the table during Print function
-	CalcFiltered       bool                  // the filterd out rows are included in the branch calculations
+	CalcFiltered       bool                  // the filtered out rows are included in the branch calculations
 	DefaultHeaderLen   int
 	InputFilename      string // filename to be used as the source instead of reading pod information from k8s api
 	StdinChanged       bool   // have we been run as part of a shell redirect
@@ -284,7 +284,7 @@ func (b *RowBuilder) walkTreeCreateRow(loop Looper, info *BuilderInformation, pa
 				}
 			}
 			if !b.CalcFiltered {
-				//dont add up the filtered out rows
+				// dont add up the filtered out rows
 				totals = append(totals, tblBranch)
 			}
 		}

@@ -158,13 +158,13 @@ func (s *environment) envBuildRow(info BuilderInformation, env v1.EnvVar, connec
 	if len(env.Value) == 0 {
 		if env.ValueFrom != nil {
 			if env.ValueFrom.ConfigMapKeyRef != nil {
-				configName = env.ValueFrom.ConfigMapKeyRef.LocalObjectReference.Name
+				configName = env.ValueFrom.ConfigMapKeyRef.Name
 				key = env.ValueFrom.ConfigMapKeyRef.Key
 				envValue = "CONFIGMAP:" + configName + " KEY:" + key
 			}
 
 			if env.ValueFrom.SecretKeyRef != nil {
-				configName = env.ValueFrom.SecretKeyRef.LocalObjectReference.Name
+				configName = env.ValueFrom.SecretKeyRef.Name
 				key = env.ValueFrom.SecretKeyRef.Key
 				envValue = "SECRETMAP:" + configName + " KEY:" + key
 				translate = false // never translate secrets

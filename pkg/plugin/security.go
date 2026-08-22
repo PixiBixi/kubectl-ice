@@ -1,7 +1,7 @@
 package plugin
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
@@ -177,41 +177,41 @@ func (s *security) securityBuildRow(info BuilderInformation, csc *v1.SecurityCon
 
 	if psc != nil {
 		if psc.RunAsNonRoot != nil {
-			ranr = NewCellText(fmt.Sprintf("%t", *psc.RunAsNonRoot))
+			ranr = NewCellText(strconv.FormatBool(*psc.RunAsNonRoot))
 		}
 
 		if psc.RunAsUser != nil {
-			rau = NewCellInt(fmt.Sprintf("%d", *psc.RunAsUser), *psc.RunAsUser)
+			rau = NewCellInt(strconv.FormatInt(*psc.RunAsUser, 10), *psc.RunAsUser)
 		}
 
 		if psc.RunAsGroup != nil {
-			rag = NewCellInt(fmt.Sprintf("%d", *psc.RunAsGroup), *psc.RunAsGroup)
+			rag = NewCellInt(strconv.FormatInt(*psc.RunAsGroup, 10), *psc.RunAsGroup)
 		}
 	}
 
 	if csc != nil {
 		if csc.AllowPrivilegeEscalation != nil {
-			ape = NewCellText(fmt.Sprintf("%t", *csc.AllowPrivilegeEscalation))
+			ape = NewCellText(strconv.FormatBool(*csc.AllowPrivilegeEscalation))
 		}
 
 		if csc.Privileged != nil {
-			p = NewCellText(fmt.Sprintf("%t", *csc.Privileged))
+			p = NewCellText(strconv.FormatBool(*csc.Privileged))
 		}
 
 		if csc.ReadOnlyRootFilesystem != nil {
-			rorfs = NewCellText(fmt.Sprintf("%t", *csc.ReadOnlyRootFilesystem))
+			rorfs = NewCellText(strconv.FormatBool(*csc.ReadOnlyRootFilesystem))
 		}
 
 		if csc.RunAsNonRoot != nil {
-			ranr = NewCellText(fmt.Sprintf("%t", *csc.RunAsNonRoot))
+			ranr = NewCellText(strconv.FormatBool(*csc.RunAsNonRoot))
 		}
 
 		if csc.RunAsUser != nil {
-			rau = NewCellInt(fmt.Sprintf("%d", *csc.RunAsUser), *csc.RunAsUser)
+			rau = NewCellInt(strconv.FormatInt(*csc.RunAsUser, 10), *csc.RunAsUser)
 		}
 
 		if csc.RunAsGroup != nil {
-			rag = NewCellInt(fmt.Sprintf("%d", *csc.RunAsGroup), *csc.RunAsGroup)
+			rag = NewCellInt(strconv.FormatInt(*csc.RunAsGroup, 10), *csc.RunAsGroup)
 		}
 	}
 

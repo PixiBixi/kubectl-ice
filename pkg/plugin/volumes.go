@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
@@ -13,7 +15,7 @@ import (
 var volumesShort = "Display container volumes and mount points"
 
 var volumesDescription = ` Prints configured volume information at the container level, volume type, backing information,
-read-write state and mount point are all avaliable, volume size is only available if found in
+read-write state and mount point are all available, volume size is only available if found in
 the pod configuration. If no name is specified the volume information for all pods in the
 current namespace are shown.`
 
@@ -196,7 +198,7 @@ func (s *volumes) createVolumeMap(volumes []v1.Volume) map[string]map[string]Cel
 
 		for i := 0; i < v.NumField(); i++ {
 			if !v.Field(i).IsZero() {
-				name := fmt.Sprintf("%v", typeOfS.Field(i).Name)
+				name := typeOfS.Field(i).Name
 				podMap[vol.Name] = s.decodeVolumeType(name, vol.VolumeSource)
 			}
 		}
@@ -235,12 +237,14 @@ func (s *volumes) decodeVolumeType(volType string, volume v1.VolumeSource) map[s
 	case "DownwardAPI":
 		str := ""
 		sep := ""
+		var strSb238 strings.Builder
 		for i, value := range volume.DownwardAPI.Items {
-			str += sep + value.Path
+			strSb238.WriteString(sep + value.Path)
 			if i == 0 {
 				sep = ","
 			}
 		}
+		str += strSb238.String()
 		outMap["backing"] = NewCellText(str)
 
 	case "EmptyDir":
@@ -282,11 +286,13 @@ func (s *volumes) decodeVolumeType(volType string, volume v1.VolumeSource) map[s
 	case "Projected":
 		tmp := ""
 		// TODO: needs reworking it looks fuggly
+		var tmpSb285 strings.Builder
 		for _, val := range volume.Projected.Sources {
 			if val.ConfigMap != nil {
-				tmp += val.ConfigMap.Name + ","
+				tmpSb285.WriteString(val.ConfigMap.Name + ",")
 			}
 		}
+		tmp += tmpSb285.String()
 		if len(tmp) > 0 {
 			tmp = tmp[:len(tmp)-1]
 		}
@@ -332,7 +338,7 @@ func (s *volumes) volumesBuildRow(info BuilderInformation, podVolumes map[string
 		volumeType,
 		backing,
 		size,
-		NewCellText(fmt.Sprintf("%t", mount.ReadOnly)),
+		NewCellText(strconv.FormatBool(mount.ReadOnly)),
 		NewCellText(mount.MountPath))
 
 	return cellList

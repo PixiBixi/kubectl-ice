@@ -48,12 +48,12 @@ const (
 )
 
 func InitSubCommands(rootCmd *cobra.Command) {
-	var includeInitShort string = "include init container(s) in the output, by default init containers are hidden"
-	var odditiesShort string = "show only the outlier rows that dont fall within the computed range"
-	var sizeShort string = "allows conversion to the selected size rather then the default megabyte output"
-	var treeShort string = "Display tree like view instead of the standard list"
-	var nodetreeShort string = "Displays the tree with the nodes as the root"
-	var showIPShort string = "Show the pods IP address column"
+	var includeInitShort = "include init container(s) in the output, by default init containers are hidden"
+	var odditiesShort = "show only the outlier rows that dont fall within the computed range"
+	var sizeShort = "allows conversion to the selected size rather then the default megabyte output"
+	var treeShort = "Display tree like view instead of the standard list"
+	var nodetreeShort = "Displays the tree with the nodes as the root"
+	var showIPShort = "Show the pods IP address column"
 	// var treeShort string = "Display tree like view instead of the standard list"
 
 	log := logger{location: "InitSubCommands"}
@@ -454,9 +454,9 @@ func addCommonFlags(cmdObj *cobra.Command) {
 	cmdObj.Flags().StringP("container", "c", "", `Container name. If omitted show all containers in the pod`)
 	cmdObj.Flags().StringP("sort", "", "", `Sort by column`)
 	cmdObj.Flags().StringP("output", "o", "", `Output format, currently csv, list, json and yaml are supported`)
-	cmdObj.Flags().StringP("match", "m", "", `Filters out results, comma seperated list of COLUMN OP VALUE, where OP can be one of ==,<,>,<=,>= and != `)
+	cmdObj.Flags().StringP("match", "m", "", `Filters out results, comma separated list of COLUMN OP VALUE, where OP can be one of ==,<,>,<=,>= and != `)
 	cmdObj.Flags().StringP("match-only", "M", "", `Filters out results but only calculates up visible rows`)
-	cmdObj.Flags().StringP("select", "", "", `Filters pods based on their spec field, comma seperated list of FIELD OP VALUE, where OP can be one of ==, = and != `)
+	cmdObj.Flags().StringP("select", "", "", `Filters pods based on their spec field, comma separated list of FIELD OP VALUE, where OP can be one of ==, = and != `)
 	cmdObj.Flags().BoolP("show-namespace", "", false, `Show the namespace column`)
 	cmdObj.Flags().BoolP("show-node", "", false, `Show the node name column`)
 	cmdObj.Flags().BoolP("show-type", "T", false, `Show the container type column, where:
@@ -684,11 +684,13 @@ func splitAndFilterList(rawSortString string, filterString string) ([]string, er
 		// current used chars in headers are A-Z ! and % nothing else is needed
 		// so pointless using regex
 		rawCase = strings.ToUpper(rawItem)
+		var safeStrSb687 strings.Builder
 		for v := range strings.SplitSeq(rawCase, "") {
 			if strings.Contains(filterString, v) {
-				safeStr += v
+				safeStrSb687.WriteString(v)
 			}
 		}
+		safeStr += safeStrSb687.String()
 
 		if len(safeStr) != len(rawItem) {
 			return []string{}, errors.New("invalid characters in column name")
@@ -716,12 +718,14 @@ func splitAndFilterMatchList(rawSortString string, filterString string, operator
 			continue
 		}
 
+		var safeStrSb719 strings.Builder
 		for v := range strings.SplitSeq(rawItem, "") {
 			rawCase = strings.ToUpper(v)
 			if strings.Contains(filterString, rawCase) {
-				safeStr += v
+				safeStrSb719.WriteString(v)
 			}
 		}
+		safeStr += safeStrSb719.String()
 
 		if len(safeStr) != len(rawItem) {
 			return map[string]matchValue{}, errors.New("invalid characters in suppiled string")
@@ -735,7 +739,7 @@ func splitAndFilterMatchList(rawSortString string, filterString string, operator
 
 		for i := range operatorList {
 			operator = operatorList[i]
-			// check idx is 1 or more as we need at least a single charactor before the operator
+			// check idx is 1 or more as we need at least a single character before the operator
 			if idx := strings.Index(safeStr, operator); idx > 0 {
 				fieldName = strings.ToUpper(strings.TrimSpace(safeStr[:idx]))
 				value = strings.TrimSpace(safeStr[idx+len(operator):])

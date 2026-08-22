@@ -5,7 +5,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 
@@ -16,10 +15,8 @@ import (
 func TestPodMetrics2HashtableCrossNamespace(t *testing.T) {
 	metric := func(namespace string, usage string) v1beta1.PodMetrics {
 		return v1beta1.PodMetrics{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "thanos-receive-0",
-				Namespace: namespace,
-			},
+			Name:      "thanos-receive-0",
+			Namespace: namespace,
 			Containers: []v1beta1.ContainerMetrics{
 				{
 					Name: "receive",

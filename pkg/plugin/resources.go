@@ -11,12 +11,12 @@ import (
 	v1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 )
 
-// returns a string replacing %[1] with the resourse type r
+// returns a string replacing %[1] with the resources type r
 func resourceShort(r string) string {
 	return fmt.Sprintf("Show configured %[1]s size, limit and %% usage of each container", r)
 }
 
-// returns a string replacing %[1] with the resourse type r
+// returns a string replacing %[1] with the resources type r
 func resourceDescription(r string) string {
 	return fmt.Sprintf(` Prints the current %[1]s usage along with configured requests and limits. The calculated %% fields
 serve as an easy way to see how close you are to the configured sizes.  By specifying the -r
@@ -26,7 +26,7 @@ of all pods in the current namespace are shown.
 The T column in the table output denotes S for Standard and I for init containers`, r)
 }
 
-// returns a string replacing %[2] with the resourse type r
+// returns a string replacing %[2] with the resources type r
 // %[1] is replaced with its self as it is needed later on
 func resourceExample(r string) string {
 	return fmt.Sprintf(`  # List containers %[2]s info from pods
@@ -88,7 +88,7 @@ func Resources(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, arg
 		return err
 	}
 
-	//only need to pull metrics info we are reading live data,
+	// only need to pull metrics info we are reading live data,
 	// if we read from a file metric data wont exist
 	if len(commonFlagList.inputFilename) == 0 && !stdinChanged {
 		if err := connect.LoadMetricConfig(kubeFlags); err != nil {
