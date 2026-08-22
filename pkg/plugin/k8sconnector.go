@@ -1023,9 +1023,20 @@ func (c *Connector) recordLoaded[T any](kind string, cache map[string][]T, names
 	}
 }
 
-// ClearPodCache clears the cached pod list, forcing a re-fetch on the next GetPods call.
-func (c *Connector) ClearPodCache() {
+// ClearCache drops every cached object so the next build refetches. Clearing
+// only the pod list left the owner tree frozen at whatever it was on the first
+// render, so a rollout during a --watch --tree session kept showing the old
+// ReplicaSet as the parent.
+func (c *Connector) ClearCache() {
 	c.podList = nil
+	c.replicaList = nil
+	c.deploymentList = nil
+	c.daemonList = nil
+	c.statefulList = nil
+	c.jobList = nil
+	c.cronJobList = nil
+	c.configMapArray = nil
+	c.loadedAll = nil
 }
 
 // GetAllPodsAllNamespaces returns all pods across all namespaces regardless of
