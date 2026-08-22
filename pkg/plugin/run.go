@@ -47,6 +47,13 @@ func runSubCommand(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags,
 		return err
 	}
 
+	return runWithConnector(cmd, &connect, args, sub)
+}
+
+// runWithConnector is runSubCommand once the connection exists. Split out so a
+// test can hand it a Connector backed by client-go's fake and exercise the whole
+// sequence, which every subcommand goes through, without an api server.
+func runWithConnector(cmd *cobra.Command, connect *Connector, args []string, sub subCommand) error {
 	flags, err := processCommonFlags(cmd)
 	if err != nil {
 		return err
@@ -67,11 +74,11 @@ func runSubCommand(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags,
 		// whether the pod name column is worth showing.
 		PodName:    args,
 		Table:      &table,
-		Connection: &connect,
+		Connection: connect,
 	}
 	builder.SetFlagsFrom(flags)
 
-	run := runContext{cmd: cmd, builder: &builder, connect: &connect, flags: flags, args: args}
+	run := runContext{cmd: cmd, builder: &builder, connect: connect, flags: flags, args: args}
 
 	if sub.configure != nil {
 		if err := sub.configure(run); err != nil {
