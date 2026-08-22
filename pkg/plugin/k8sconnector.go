@@ -64,6 +64,7 @@ type Connector struct {
 	deploymentList    map[string][]a1.Deployment   // list of Deployments
 	jobList           map[string][]batchv1.Job     // list of k8s Jobs
 	cronJobList       map[string][]batchv1.CronJob // list of k8s CronJobs
+	loadedAll         map[string]bool              // kinds already listed cluster wide, see recordLoaded
 }
 
 type ParentData struct {
@@ -552,7 +553,7 @@ func (c *Connector) GetReplicaSet(replicaName string, namespace string) *a1.Repl
 
 	if _, ok := c.replicaList[namespace]; ok {
 		rs = c.replicaList[namespace]
-	} else {
+	} else if !c.loadedAll["ReplicaSet"] {
 		// the cache check below decides: a failed load leaves it empty and the
 		// caller gets nil, which is the documented result for "not found"
 		_ = c.LoadReplicaSet([]string{}, namespace)
@@ -598,21 +599,30 @@ func (c *Connector) LoadReplicaSet(replicaNameList []string, namespace string) e
 		selector.LabelSelector = c.Flags.labels
 	}
 
-	rs, err := c.clientSet.AppsV1().ReplicaSets(namespace).List(context.TODO(), selector)
-	if err == nil {
-		if len(rs.Items) == 0 {
-			return errors.New("no ReplicaSet found in default namespace")
-		} else {
-			if len(c.Flags.matchSpecList) > 0 {
-				return err
-			} else {
-				c.replicaList[namespace] = append(c.replicaList[namespace], rs.Items...)
-				return nil
-			}
-		}
-	} else {
+	// with -A one cluster wide list replaces one list per namespace. On 289
+	// namespaces that was 289 sequential round trips for this kind alone.
+	listNamespace := namespace
+	if c.Flags.allNamespaces {
+		listNamespace = ""
+	}
+
+	rs, err := c.clientSet.AppsV1().ReplicaSets(listNamespace).List(context.TODO(), selector)
+	if err != nil {
 		return fmt.Errorf("failed to retrieve ReplicaSet list from server: %w", err)
 	}
+
+	if len(c.Flags.matchSpecList) > 0 {
+		// --select filters on the pod spec, the workload cache is not used
+		return nil
+	}
+
+	for i := range rs.Items {
+		ns := rs.Items[i].Namespace
+		c.replicaList[ns] = append(c.replicaList[ns], rs.Items[i])
+	}
+	c.recordLoaded("ReplicaSet", c.replicaList, namespace)
+
+	return nil
 }
 
 func (c *Connector) GetDeployment(deploymentName string, namespace string) *a1.Deployment {
@@ -620,7 +630,7 @@ func (c *Connector) GetDeployment(deploymentName string, namespace string) *a1.D
 
 	if _, ok := c.deploymentList[namespace]; ok {
 		de = c.deploymentList[namespace]
-	} else {
+	} else if !c.loadedAll["Deployment"] {
 		// the cache check below decides: a failed load leaves it empty and the
 		// caller gets nil, which is the documented result for "not found"
 		_ = c.LoadDeployment([]string{}, namespace)
@@ -665,22 +675,30 @@ func (c *Connector) LoadDeployment(deploymentNameList []string, namespace string
 		selector.LabelSelector = c.Flags.labels
 	}
 
-	d, err := c.clientSet.AppsV1().Deployments(namespace).List(context.TODO(), selector)
+	// with -A one cluster wide list replaces one list per namespace. On 289
+	// namespaces that was 289 sequential round trips for this kind alone.
+	listNamespace := namespace
+	if c.Flags.allNamespaces {
+		listNamespace = ""
+	}
 
-	if err == nil {
-		if len(d.Items) == 0 {
-			return errors.New("no Deployment found in default namespace")
-		} else {
-			if len(c.Flags.matchSpecList) > 0 {
-				return err
-			} else {
-				c.deploymentList[namespace] = append(c.deploymentList[namespace], d.Items...)
-				return nil
-			}
-		}
-	} else {
+	d, err := c.clientSet.AppsV1().Deployments(listNamespace).List(context.TODO(), selector)
+	if err != nil {
 		return fmt.Errorf("failed to retrieve Deployment list from server: %w", err)
 	}
+
+	if len(c.Flags.matchSpecList) > 0 {
+		// --select filters on the pod spec, the workload cache is not used
+		return nil
+	}
+
+	for i := range d.Items {
+		ns := d.Items[i].Namespace
+		c.deploymentList[ns] = append(c.deploymentList[ns], d.Items[i])
+	}
+	c.recordLoaded("Deployment", c.deploymentList, namespace)
+
+	return nil
 }
 
 func (c *Connector) GetDaemonSet(daemonName string, namespace string) *a1.DaemonSet {
@@ -688,7 +706,7 @@ func (c *Connector) GetDaemonSet(daemonName string, namespace string) *a1.Daemon
 
 	if _, ok := c.daemonList[namespace]; ok {
 		rs = c.daemonList[namespace]
-	} else {
+	} else if !c.loadedAll["DaemonSet"] {
 		// the cache check below decides: a failed load leaves it empty and the
 		// caller gets nil, which is the documented result for "not found"
 		_ = c.LoadDaemonSet([]string{}, namespace)
@@ -733,22 +751,30 @@ func (c *Connector) LoadDaemonSet(daemonNameList []string, namespace string) err
 		selector.LabelSelector = c.Flags.labels
 	}
 
-	d, err := c.clientSet.AppsV1().DaemonSets(namespace).List(context.TODO(), selector)
+	// with -A one cluster wide list replaces one list per namespace. On 289
+	// namespaces that was 289 sequential round trips for this kind alone.
+	listNamespace := namespace
+	if c.Flags.allNamespaces {
+		listNamespace = ""
+	}
 
-	if err == nil {
-		if len(d.Items) == 0 {
-			return errors.New("no DaemonSet found in default namespace")
-		} else {
-			if len(c.Flags.matchSpecList) > 0 {
-				return err
-			} else {
-				c.daemonList[namespace] = append(c.daemonList[namespace], d.Items...)
-				return nil
-			}
-		}
-	} else {
+	d, err := c.clientSet.AppsV1().DaemonSets(listNamespace).List(context.TODO(), selector)
+	if err != nil {
 		return fmt.Errorf("failed to retrieve DaemonSet list from server: %w", err)
 	}
+
+	if len(c.Flags.matchSpecList) > 0 {
+		// --select filters on the pod spec, the workload cache is not used
+		return nil
+	}
+
+	for i := range d.Items {
+		ns := d.Items[i].Namespace
+		c.daemonList[ns] = append(c.daemonList[ns], d.Items[i])
+	}
+	c.recordLoaded("DaemonSet", c.daemonList, namespace)
+
+	return nil
 }
 
 func (c *Connector) GetStatefulSet(statefulsetName string, namespace string) *a1.StatefulSet {
@@ -756,7 +782,7 @@ func (c *Connector) GetStatefulSet(statefulsetName string, namespace string) *a1
 
 	if _, ok := c.statefulList[namespace]; ok {
 		ss = c.statefulList[namespace]
-	} else {
+	} else if !c.loadedAll["StatefulSet"] {
 		// the cache check below decides: a failed load leaves it empty and the
 		// caller gets nil, which is the documented result for "not found"
 		_ = c.LoadStatefulSet([]string{}, namespace)
@@ -801,22 +827,30 @@ func (c *Connector) LoadStatefulSet(statefulNameList []string, namespace string)
 		selector.LabelSelector = c.Flags.labels
 	}
 
-	s, err := c.clientSet.AppsV1().StatefulSets(namespace).List(context.TODO(), selector)
+	// with -A one cluster wide list replaces one list per namespace. On 289
+	// namespaces that was 289 sequential round trips for this kind alone.
+	listNamespace := namespace
+	if c.Flags.allNamespaces {
+		listNamespace = ""
+	}
 
-	if err == nil {
-		if len(s.Items) == 0 {
-			return errors.New("no StatefulSet found in default namespace")
-		} else {
-			if len(c.Flags.matchSpecList) > 0 {
-				return err
-			} else {
-				c.statefulList[namespace] = append(c.statefulList[namespace], s.Items...)
-				return nil
-			}
-		}
-	} else {
+	s, err := c.clientSet.AppsV1().StatefulSets(listNamespace).List(context.TODO(), selector)
+	if err != nil {
 		return fmt.Errorf("failed to retrieve StatefulSet list from server: %w", err)
 	}
+
+	if len(c.Flags.matchSpecList) > 0 {
+		// --select filters on the pod spec, the workload cache is not used
+		return nil
+	}
+
+	for i := range s.Items {
+		ns := s.Items[i].Namespace
+		c.statefulList[ns] = append(c.statefulList[ns], s.Items[i])
+	}
+	c.recordLoaded("StatefulSet", c.statefulList, namespace)
+
+	return nil
 }
 
 func (c *Connector) GetJob(jobName string, namespace string) *batchv1.Job {
@@ -824,7 +858,7 @@ func (c *Connector) GetJob(jobName string, namespace string) *batchv1.Job {
 
 	if _, ok := c.jobList[namespace]; ok {
 		cj = c.jobList[namespace]
-	} else {
+	} else if !c.loadedAll["Job"] {
 		// the cache check below decides: a failed load leaves it empty and the
 		// caller gets nil, which is the documented result for "not found"
 		_ = c.LoadJob([]string{}, namespace)
@@ -869,22 +903,30 @@ func (c *Connector) LoadJob(jobNameList []string, namespace string) error {
 		selector.LabelSelector = c.Flags.labels
 	}
 
-	j, err := c.clientSet.BatchV1().Jobs(namespace).List(context.TODO(), selector)
+	// with -A one cluster wide list replaces one list per namespace. On 289
+	// namespaces that was 289 sequential round trips for this kind alone.
+	listNamespace := namespace
+	if c.Flags.allNamespaces {
+		listNamespace = ""
+	}
 
-	if err == nil {
-		if len(j.Items) == 0 {
-			return errors.New("no Jobs found in default namespace")
-		} else {
-			if len(c.Flags.matchSpecList) > 0 {
-				return err
-			} else {
-				c.jobList[namespace] = append(c.jobList[namespace], j.Items...)
-				return nil
-			}
-		}
-	} else {
+	j, err := c.clientSet.BatchV1().Jobs(listNamespace).List(context.TODO(), selector)
+	if err != nil {
 		return fmt.Errorf("failed to retrieve Job list from server: %w", err)
 	}
+
+	if len(c.Flags.matchSpecList) > 0 {
+		// --select filters on the pod spec, the workload cache is not used
+		return nil
+	}
+
+	for i := range j.Items {
+		ns := j.Items[i].Namespace
+		c.jobList[ns] = append(c.jobList[ns], j.Items[i])
+	}
+	c.recordLoaded("Job", c.jobList, namespace)
+
+	return nil
 }
 
 func (c *Connector) GetCronJob(jobName string, namespace string) *batchv1.CronJob {
@@ -892,7 +934,7 @@ func (c *Connector) GetCronJob(jobName string, namespace string) *batchv1.CronJo
 
 	if _, ok := c.cronJobList[namespace]; ok {
 		cj = c.cronJobList[namespace]
-	} else {
+	} else if !c.loadedAll["CronJob"] {
 		// the cache check below decides: a failed load leaves it empty and the
 		// caller gets nil, which is the documented result for "not found"
 		_ = c.LoadCronJob([]string{}, namespace)
@@ -937,21 +979,47 @@ func (c *Connector) LoadCronJob(jobNameList []string, namespace string) error {
 		selector.LabelSelector = c.Flags.labels
 	}
 
-	j, err := c.clientSet.BatchV1().CronJobs(namespace).List(context.TODO(), selector)
+	// with -A one cluster wide list replaces one list per namespace. On 289
+	// namespaces that was 289 sequential round trips for this kind alone.
+	listNamespace := namespace
+	if c.Flags.allNamespaces {
+		listNamespace = ""
+	}
 
-	if err == nil {
-		if len(j.Items) == 0 {
-			return errors.New("no CronJobs found in default namespace")
-		} else {
-			if len(c.Flags.matchSpecList) > 0 {
-				return err
-			} else {
-				c.cronJobList[namespace] = append(c.cronJobList[namespace], j.Items...)
-				return nil
-			}
-		}
-	} else {
+	j, err := c.clientSet.BatchV1().CronJobs(listNamespace).List(context.TODO(), selector)
+	if err != nil {
 		return fmt.Errorf("failed to retrieve CronJob list from server: %w", err)
+	}
+
+	if len(c.Flags.matchSpecList) > 0 {
+		// --select filters on the pod spec, the workload cache is not used
+		return nil
+	}
+
+	for i := range j.Items {
+		ns := j.Items[i].Namespace
+		c.cronJobList[ns] = append(c.cronJobList[ns], j.Items[i])
+	}
+	c.recordLoaded("CronJob", c.cronJobList, namespace)
+
+	return nil
+}
+
+// recordLoaded marks a workload kind as fetched so that a cache miss is not
+// retried against the api server. With -A the whole cluster was listed, so any
+// later miss is real. Without it only one namespace was listed, and an empty
+// result still has to be recorded or every lookup in that namespace lists again.
+func (c *Connector) recordLoaded[T any](kind string, cache map[string][]T, namespace string) {
+	if c.Flags.allNamespaces {
+		if c.loadedAll == nil {
+			c.loadedAll = make(map[string]bool)
+		}
+		c.loadedAll[kind] = true
+		return
+	}
+
+	if _, ok := cache[namespace]; !ok {
+		cache[namespace] = nil
 	}
 }
 
