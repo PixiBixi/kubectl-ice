@@ -79,12 +79,25 @@ func runSubCommand(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags,
 		}
 	}
 
-	render := func() (string, error) {
-		if sub.filterRows != nil {
-			if err := sub.filterRows(run); err != nil {
-				return "", err
-			}
+	// finish is everything between a built table and a printed one. Both paths go
+	// through it, so --sort and --oddities apply identically whether the table
+	// was built once or is being rebuilt on a pod event.
+	finish := func() error {
+		if err := builder.Table.SortByNames(flags.sortList...); err != nil {
+			return err
 		}
+		if sub.filterRows != nil {
+			return sub.filterRows(run)
+		}
+
+		return nil
+	}
+
+	render := func() (string, error) {
+		if err := finish(); err != nil {
+			return "", err
+		}
+
 		return sprintTableAs(*builder.Table, flags.outputAs), nil
 	}
 
@@ -96,14 +109,8 @@ func runSubCommand(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags,
 		return err
 	}
 
-	if err := builder.Table.SortByNames(flags.sortList...); err != nil {
+	if err := finish(); err != nil {
 		return err
-	}
-
-	if sub.filterRows != nil {
-		if err := sub.filterRows(run); err != nil {
-			return err
-		}
 	}
 
 	outputTableAs(*builder.Table, flags.outputAs)

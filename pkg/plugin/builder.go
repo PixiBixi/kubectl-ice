@@ -420,10 +420,8 @@ func (b *RowBuilder) BuildContainerTable(loop Looper, info *BuilderInformation, 
 		}
 	}
 
-	if err := b.Table.SortByNames(b.CommonFlags.sortList...); err != nil {
-		return err
-	}
-
+	// sorting belongs to the caller: it has to happen on the tree path and on
+	// every watch rebuild too, and this function covers neither
 	return nil
 }
 
