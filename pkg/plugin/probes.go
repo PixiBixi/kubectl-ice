@@ -53,56 +53,11 @@ type probeAction struct {
 
 // list details of configured liveness readiness and startup probes
 func Probes(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, args []string) error {
-
-	log := logger{location: "Probes"}
-	log.Debug("Start")
-
-	loopinfo := probes{}
-	builder := RowBuilder{}
-	builder.LoopSpec = true
-	builder.ShowInitContainers = true
-	builder.PodName = args
-
-	connect := Connector{}
-	if err := connect.LoadConfig(cmd.Context(), kubeFlags); err != nil {
-		return err
-	}
-
-	commonFlagList, err := processCommonFlags(cmd)
-	if err != nil {
-		return err
-	}
-	connect.Flags = commonFlagList
-	builder.Connection = &connect
-
-	builder.SetFlagsFrom(commonFlagList)
-
-	table := Table{}
-	table.ColourOutput = commonFlagList.outputAsColour
-	table.CustomColours = commonFlagList.useTheseColours
-
-	builder.Table = &table
-	builder.ShowTreeView = commonFlagList.showTreeView
-
-	renderFn := func() (string, error) {
-		return sprintTableAs(*builder.Table, commonFlagList.outputAs), nil
-	}
-
-	if commonFlagList.watch {
-		return builder.WatchBuild(&loopinfo, renderFn)
-	}
-
-	if err := builder.Build(&loopinfo); err != nil {
-		return err
-	}
-
-	if err := table.SortByNames(commonFlagList.sortList...); err != nil {
-		return err
-	}
-
-	outputTableAs(table, commonFlagList.outputAs)
-	return nil
-
+	return runSubCommand(cmd, kubeFlags, args, subCommand{
+		loop:               &probes{},
+		loopSpec:           true,
+		showInitContainers: true,
+	})
 }
 
 type probes struct {
@@ -185,16 +140,20 @@ func (s *probes) probesBuildRow(info BuilderInformation, action probeAction) []C
 }
 
 // check each type of probe and return a list
-func (s *probes) buildProbeList(container v1.Container) map[string][]probeAction {
-	probes := make(map[string][]probeAction)
+// buildProbeList returns the container's probes in a fixed order. It used to
+// return a map keyed by probe name, and the only caller ranged over it, so go's
+// randomised map iteration reordered the rows on every single run.
+func (s *probes) buildProbeList(container v1.Container) [][]probeAction {
+	var probes [][]probeAction
+
 	if container.LivenessProbe != nil {
-		probes["liveness"] = s.buildProbeAction("liveness", container.LivenessProbe)
+		probes = append(probes, s.buildProbeAction("liveness", container.LivenessProbe))
 	}
 	if container.ReadinessProbe != nil {
-		probes["readiness"] = s.buildProbeAction("readiness", container.ReadinessProbe)
+		probes = append(probes, s.buildProbeAction("readiness", container.ReadinessProbe))
 	}
 	if container.StartupProbe != nil {
-		probes["startup"] = s.buildProbeAction("startup", container.StartupProbe)
+		probes = append(probes, s.buildProbeAction("startup", container.StartupProbe))
 	}
 
 	return probes
