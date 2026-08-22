@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
@@ -137,21 +138,25 @@ func (s *capabilities) capabilitiesBuildRow(securityContext *v1.SecurityContext,
 
 	if securityContext != nil {
 		if securityContext.Capabilities != nil {
+			var capAddSb140 strings.Builder
 			for i, v := range securityContext.Capabilities.Add {
 				sep := ","
 				if i == 0 {
 					sep = ""
 				}
-				capAdd += sep + fmt.Sprint(v)
+				capAddSb140.WriteString(sep + fmt.Sprint(v))
 			}
+			capAdd += capAddSb140.String()
 
+			var capDropSb148 strings.Builder
 			for i, v := range securityContext.Capabilities.Drop {
 				sep := ","
 				if i == 0 {
 					sep = ""
 				}
-				capDrop += sep + fmt.Sprint(v)
+				capDropSb148.WriteString(sep + fmt.Sprint(v))
 			}
+			capDrop += capDropSb148.String()
 		}
 	}
 

@@ -159,7 +159,7 @@ func (s *image) imageBuildRow(info BuilderInformation, imageName string, pullPol
 			tmp := strings.Split(arrPath[c-1], ":")
 			if len(tmp) > 0 {
 				tag = strings.Join(tmp[1:], ":")
-				//calculate the uri length
+				// calculate the uri length
 				namelen := len(imageName) - len(tag)
 				if len(tag) > 0 {
 					// check a tag was supplied so we dont cut off the last char of the image name

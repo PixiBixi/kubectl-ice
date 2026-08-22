@@ -1,7 +1,7 @@
 package plugin
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
@@ -138,7 +138,7 @@ func (s restarts) BuildBranch(info BuilderInformation, rows [][]Cell) ([]Cell, e
 		for _, r := range rows {
 			rowOut[0].number += r[0].number // ready
 		}
-		rowOut[0].text = fmt.Sprintf("%d", rowOut[0].number)
+		rowOut[0].text = strconv.FormatInt(rowOut[0].number, 10)
 	}
 
 	return rowOut, nil
@@ -158,7 +158,7 @@ func (s restarts) restartsBuildRow(info BuilderInformation, restartCount int32) 
 	var cellList []Cell
 
 	cellList = append(cellList,
-		NewCellInt(fmt.Sprintf("%d", restartCount), int64(restartCount)),
+		NewCellInt(strconv.Itoa(int(restartCount)), int64(restartCount)),
 	)
 
 	return cellList

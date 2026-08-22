@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 
 	a1 "k8s.io/api/apps/v1"
@@ -330,7 +331,7 @@ func (c *Connector) GetMetricPods(podNameList []string) ([]v1beta1.PodMetrics, e
 	if len(podNameList) > 0 {
 		for _, podname := range podNameList {
 			if len(c.Flags.labels) > 0 {
-				return []v1beta1.PodMetrics{}, fmt.Errorf("error: you cannot specify a pod name and a selector together")
+				return []v1beta1.PodMetrics{}, errors.New("error: you cannot specify a pod name and a selector together")
 			}
 
 			// single pod
@@ -463,17 +464,17 @@ func convertToString(field reflect.Value, value any) string {
 	switch value.(type) {
 	case *bool:
 		if !field.IsNil() {
-			return fmt.Sprint(reflect.Indirect(field).Bool())
+			return strconv.FormatBool(reflect.Indirect(field).Bool())
 		}
 
 	case *string:
 		if !field.IsNil() {
-			return fmt.Sprint(reflect.Indirect(field).String())
+			return reflect.Indirect(field).String()
 		}
 
 	case *int, *int32, *int64:
 		if !field.IsNil() {
-			return fmt.Sprint(reflect.Indirect(field).Int())
+			return strconv.FormatInt(reflect.Indirect(field).Int(), 10)
 		}
 	}
 
@@ -489,7 +490,7 @@ func (c *Connector) LoadPods(podNameList []string) error {
 	if len(podNameList) > 0 {
 		if len(c.Flags.labels) > 0 {
 			c.podList = []v1.Pod{}
-			return fmt.Errorf("error: you cannot specify a pod name and a selector together")
+			return errors.New("error: you cannot specify a pod name and a selector together")
 		}
 
 		// single pod

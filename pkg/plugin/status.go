@@ -1,7 +1,7 @@
 package plugin
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -241,7 +241,7 @@ func (s *status) BuildBranch(info BuilderInformation, rows [][]Cell) ([]Cell, er
 	}
 
 	rowOut[2].typ = 1
-	rowOut[2].text = fmt.Sprintf("%d", rowOut[2].number)
+	rowOut[2].text = strconv.FormatInt(rowOut[2].number, 10)
 
 	switch info.TypeName {
 	case "Pod":
@@ -300,9 +300,9 @@ func (s *status) BuildContainerStatus(container v1.ContainerStatus, info Builder
 
 	if state.Terminated != nil {
 		strState = "Terminated"
-		exitCode = fmt.Sprintf("%d", state.Terminated.ExitCode)
+		exitCode = strconv.Itoa(int(state.Terminated.ExitCode))
 		rawExitCode = int64(state.Terminated.ExitCode)
-		signal = fmt.Sprintf("%d", state.Terminated.Signal)
+		signal = strconv.Itoa(int(state.Terminated.Signal))
 		rawSignal = int64(state.Terminated.Signal)
 		startTime = state.Terminated.StartedAt.Time
 		startedAt = state.Terminated.StartedAt.Format(timestampFormat)
@@ -324,7 +324,7 @@ func (s *status) BuildContainerStatus(container v1.ContainerStatus, info Builder
 	}
 
 	if container.Started != nil {
-		started = fmt.Sprintf("%t", *container.Started)
+		started = strconv.FormatBool(*container.Started)
 		if !*container.Started {
 			s.pStopped = true
 		}
@@ -332,18 +332,18 @@ func (s *status) BuildContainerStatus(container v1.ContainerStatus, info Builder
 		startColour = setColourBoolean(*container.Started)
 	}
 
-	ready := fmt.Sprintf("%t", container.Ready)
+	ready := strconv.FormatBool(container.Ready)
 	if !container.Ready {
 		s.pNotReady = true
 	}
 	// set ready colour
 	readyColour = setColourBoolean(container.Ready)
 
-	restarts := fmt.Sprintf("%d", container.RestartCount)
+	restarts := strconv.Itoa(int(container.RestartCount))
 	rawRestarts = int64(container.RestartCount)
 
 	s.pRestarts += rawRestarts
-	s.pRestartsText = fmt.Sprintf("%d", s.pRestarts)
+	s.pRestartsText = strconv.FormatInt(s.pRestarts, 10)
 
 	// remove pod and container name from the message string
 	message = s.trimStatusMessage(message, info.PodName, info.Name)

@@ -5,7 +5,6 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	apiresource "k8s.io/apimachinery/pkg/api/resource"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // *****************
@@ -117,7 +116,7 @@ var nodeRolesTests = []nodeRolesTest{
 
 func TestNodeRoles(t *testing.T) {
 	for _, tt := range nodeRolesTests {
-		node := v1.Node{ObjectMeta: metav1.ObjectMeta{Labels: tt.labels}}
+		node := v1.Node{Labels: tt.labels}
 		if got := nodeRoles(node); got != tt.expected {
 			t.Errorf("nodeRoles(%v) = %q, want %q", tt.labels, got, tt.expected)
 		}

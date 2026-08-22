@@ -2,6 +2,7 @@ package plugin
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -171,11 +172,11 @@ func (s *probes) probesBuildRow(info BuilderInformation, action probeAction) []C
 
 	cellList = append(cellList,
 		NewCellText(action.probeName),
-		NewCellInt(fmt.Sprintf("%d", action.probe.InitialDelaySeconds), int64(action.probe.InitialDelaySeconds)),
-		NewCellInt(fmt.Sprintf("%d", action.probe.PeriodSeconds), int64(action.probe.PeriodSeconds)),
-		NewCellInt(fmt.Sprintf("%d", action.probe.TimeoutSeconds), int64(action.probe.TimeoutSeconds)),
-		NewCellInt(fmt.Sprintf("%d", action.probe.SuccessThreshold), int64(action.probe.SuccessThreshold)),
-		NewCellInt(fmt.Sprintf("%d", action.probe.FailureThreshold), int64(action.probe.FailureThreshold)),
+		NewCellInt(strconv.Itoa(int(action.probe.InitialDelaySeconds)), int64(action.probe.InitialDelaySeconds)),
+		NewCellInt(strconv.Itoa(int(action.probe.PeriodSeconds)), int64(action.probe.PeriodSeconds)),
+		NewCellInt(strconv.Itoa(int(action.probe.TimeoutSeconds)), int64(action.probe.TimeoutSeconds)),
+		NewCellInt(strconv.Itoa(int(action.probe.SuccessThreshold)), int64(action.probe.SuccessThreshold)),
+		NewCellInt(strconv.Itoa(int(action.probe.FailureThreshold)), int64(action.probe.FailureThreshold)),
 		NewCellText(action.actionName),
 		NewCellText(action.action),
 	)

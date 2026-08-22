@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // With -A, StatefulSet pods sharing a name across namespaces (thanos-receive-0)
@@ -13,11 +12,9 @@ import (
 func TestGetPodLabelsCrossNamespace(t *testing.T) {
 	pod := func(namespace, env string) v1.Pod {
 		return v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "thanos-receive-0",
-				Namespace: namespace,
-				Labels:    map[string]string{"env": env},
-			},
+			Name:      "thanos-receive-0",
+			Namespace: namespace,
+			Labels:    map[string]string{"env": env},
 		}
 	}
 
@@ -45,11 +42,9 @@ func TestGetPodLabelsCrossNamespace(t *testing.T) {
 func TestGetPodAnnotationsCrossNamespace(t *testing.T) {
 	pod := func(namespace, team string) v1.Pod {
 		return v1.Pod{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:        "thanos-receive-0",
-				Namespace:   namespace,
-				Annotations: map[string]string{"team": team},
-			},
+			Name:        "thanos-receive-0",
+			Namespace:   namespace,
+			Annotations: map[string]string{"team": team},
 		}
 	}
 

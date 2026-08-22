@@ -1,7 +1,7 @@
 package plugin
 
 import (
-	"fmt"
+	"strconv"
 
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
@@ -11,7 +11,7 @@ import (
 var portsShort = "Shows ports exposed by the containers in a pod"
 
 var portsDescription = ` Print a details of service ports exposed by containers in a pod. Details include the container 
-name, port number and protocol type. Port name and host port are only show if avaliable. If no
+name, port number and protocol type. Port name and host port are only show if available. If no
 name is specified the container port details of all pods in the current namespace are shown.
 
 The T column in the table output denotes S for Standard and I for init containers`
@@ -176,7 +176,7 @@ func (s *ports) portsBuildRow(info BuilderInformation, port v1.ContainerPort) []
 	hostPort := Cell{}
 
 	if port.HostPort > 0 {
-		hostPort = NewCellInt(fmt.Sprintf("%d", port.HostPort), int64(port.HostPort))
+		hostPort = NewCellInt(strconv.Itoa(int(port.HostPort)), int64(port.HostPort))
 	} else {
 		hostPort = NewCellText("")
 	}
@@ -187,7 +187,7 @@ func (s *ports) portsBuildRow(info BuilderInformation, port v1.ContainerPort) []
 
 	cellList = append(cellList,
 		NewCellText(port.Name),
-		NewCellInt(fmt.Sprintf("%d", port.ContainerPort), int64(port.ContainerPort)),
+		NewCellInt(strconv.Itoa(int(port.ContainerPort)), int64(port.ContainerPort)),
 		NewCellText(string(port.Protocol)),
 		hostPort,
 		NewCellText(info.Data.pod.Status.PodIP),
