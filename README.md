@@ -9,10 +9,10 @@ ice lists detailed information about the containers present inside a
  image, port and executable configurations, along with current cpu and memory
  metrics all at the container level (requires metrics server)
 
-![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/nimblearchitect/kubectl-ice)
-![GitHub](https://img.shields.io/github/license/NimbleArchitect/kubectl-ice)
-![Github All Releases](https://img.shields.io/github/downloads/NimbleArchitect/kubectl-ice/total.svg?color=blue)
-![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/NimbleArchitect/kubectl-ice/release.yml)
+![GitHub go.mod Go version](https://img.shields.io/github/go-mod/go-version/PixiBixi/kubectl-ice)
+![GitHub](https://img.shields.io/github/license/PixiBixi/kubectl-ice)
+![Github All Releases](https://img.shields.io/github/downloads/PixiBixi/kubectl-ice/total.svg?color=blue)
+![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/PixiBixi/kubectl-ice/release.yml)
 [![CI](https://github.com/PixiBixi/kubectl-ice/actions/workflows/ci.yml/badge.svg)](https://github.com/PixiBixi/kubectl-ice/actions/workflows/ci.yml)
 
 ## Features:
@@ -39,16 +39,15 @@ ice lists detailed information about the containers present inside a
 
 ## Contributing
 
-If you like my work or find this program useful and want to say thanks you can reach me on twitter [@NimbleArchitect](https://twitter.com/nimblearchitect) or you can [Sponsor me](https://github.com/sponsors/NimbleArchitect) with github sponsors or [Buy Me A Coffee](https://www.buymeacoffee.com/NimbleArchitect)
+Feedback and contributions are welcome, see the section below.
 
 
-All feedback and contributions are welcome, if you want to raise an issue or help with fixes or features please [raise an issue to discuss](https://github.com/NimbleArchitect/kubectl-ice/issues)
+All feedback and contributions are welcome, if you want to raise an issue or help with fixes or features please [raise an issue to discuss](https://github.com/PixiBixi/kubectl-ice/issues)
 
 
 # Documentation
 Full documentation can be found over at:
 
-https://nimblearchitect.github.io/kubectl-ice
 
  > **PixiBixi maintained fork.** This is a maintained fork of
  > [NimbleArchitect/kubectl-ice](https://github.com/NimbleArchitect/kubectl-ice)
@@ -76,7 +75,7 @@ kubectl krew upgrade ice
 dont have krew? check it out here [https://github.com/GoogleContainerTools/krew](https://github.com/GoogleContainerTools/krew)
 
 ## Install from binary
-- download the required binary from the [downloads](https://nimblearchitect.github.io/kubectl-ice/downloads/) page
+- download the required binary from the [releases](https://github.com/PixiBixi/kubectl-ice/releases) page
 - unzip and copy the kubectl-ice file to your path
 - run ```kubectl-ice help``` to check its working
 
@@ -84,7 +83,7 @@ dont have krew? check it out here [https://github.com/GoogleContainerTools/krew]
 
 requires Go 1.27 or later, clone and build the source using the following commands
 ```shell
-git clone https://github.com/NimbleArchitect/kubectl-ice.git
+git clone https://github.com/PixiBixi/kubectl-ice.git
 cd kubectl-ice
 make bin
 ```
@@ -160,7 +159,7 @@ Flags:
 all flags are optional, see usage instructions and examples for more info
 
 ## Examples
-Some example commands are listed below but full [usage instructions](https://nimblearchitect.github.io/kubectl-ice/documentation/#3_Usage) and [examples](https://nimblearchitect.github.io/kubectl-ice/documentation/#3.2_Example%20commands) can be found over at my website https://nimblearchitect.github.io/kubectl-ice/
+Some example commands are listed below, run `kubectl-ice <command> -h` for the full usage of any of them.
 
 
 ### Single pod info
@@ -200,4 +199,4 @@ kubectl ice status --node-label "beta.kubernetes.io/os" --pod-label "component" 
 
 
 ## License
-Licensed under Apache 2.0 see [LICENSE](https://github.com/NimbleArchitect/kubectl-pod/blob/main/LICENSE)
+Licensed under Apache 2.0, see [LICENSE](https://github.com/PixiBixi/kubectl-ice/blob/main/LICENSE)
