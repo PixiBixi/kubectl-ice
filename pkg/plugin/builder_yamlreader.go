@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 
 func (b *RowBuilder) loadYaml(filename string) ([]v1.Pod, error) {
 	var pods []v1.Pod
-	var content string
 	var scanner *bufio.Scanner
 
 	// noop unless we read stdin, see the goroutine below
@@ -42,30 +42,46 @@ func (b *RowBuilder) loadYaml(filename string) ([]v1.Pod, error) {
 		file := bufio.NewReader(os.Stdin)
 		scanner = bufio.NewScanner(file)
 	} else {
-		// load yaml file
 		//nolint:gosec // filename is the --filename value, opening it is the feature
 		file, err := os.Open(filename)
 		if err != nil {
 			return []v1.Pod{}, fmt.Errorf("failed to open %s: %w", filename, err)
 		}
 		defer func() { _ = file.Close() }() // read path, a close error is not actionable
+
 		scanner = bufio.NewScanner(file)
+	}
+
+	// a strings.Builder rather than growing a string by reassignment: one
+	// `kubectl get pods -o yaml` is a single document tens of thousands of lines
+	// long, and the old buffer made that quadratic.
+	var content strings.Builder
+
+	addDocument := func() error {
+		if content.Len() == 0 {
+			return nil
+		}
+
+		found, err := b.convertFromYaml([]byte(content.String()))
+		if err != nil {
+			return err
+		}
+		pods = append(pods, found...)
+		content.Reset()
+
+		return nil
 	}
 
 	for scanner.Scan() {
 		gotFirstLine()
-		line := scanner.Text()
-		if line == "---" {
-			pod, err := b.convertFromYaml([]byte(content))
-			if err != nil {
+
+		if line := scanner.Text(); line == "---" {
+			if err := addDocument(); err != nil {
 				return []v1.Pod{}, err
 			}
-			if hasPodData(pod) {
-				pods = append(pods, pod)
-			}
-			content = ""
 		} else {
-			content += line + "\n"
+			content.WriteString(line)
+			content.WriteString("\n")
 		}
 	}
 
@@ -73,16 +89,12 @@ func (b *RowBuilder) loadYaml(filename string) ([]v1.Pod, error) {
 		return []v1.Pod{}, fmt.Errorf("failed to read the yaml input: %w", err)
 	}
 
-	pod, err := b.convertFromYaml([]byte(content))
-	if err != nil {
+	if err := addDocument(); err != nil {
 		return []v1.Pod{}, err
-	}
-	if hasPodData(pod) {
-		pods = append(pods, pod)
 	}
 
 	if len(pods) == 0 {
-		return []v1.Pod{}, errors.New("no pod found in the yaml input, supported kinds are Pod, Deployment, ReplicaSet, StatefulSet, DaemonSet, Job and CronJob")
+		return []v1.Pod{}, errors.New("no pod found in the yaml input, supported kinds are List, Pod, Deployment, ReplicaSet, StatefulSet, DaemonSet, Job and CronJob")
 	}
 
 	return pods, nil
@@ -100,102 +112,105 @@ func hasPodData(pod v1.Pod) bool {
 	return pod.Name != "" || len(pod.Spec.Containers) > 0 || len(pod.Spec.InitContainers) > 0
 }
 
-func (b *RowBuilder) convertFromYaml(input []byte) (v1.Pod, error) {
-	// var allPods []v1.Pod
-	var err error
+// convertFromYaml turns one yaml document into the pods it describes. A workload
+// contributes its pod template, a List contributes each of its items, and an
+// unrecognised kind contributes nothing.
+func (b *RowBuilder) convertFromYaml(input []byte) ([]v1.Pod, error) {
 	var pod v1.Pod
-	var newPod v1.Pod
 
-	// Happy accident, it looks like pod unmarshalling sets the kind field so we dont have to guess,
-	//  not sure if this is intended so it might break in the future
-	err = yaml.Unmarshal(input, &pod)
-	if err == nil {
-		if pod.Kind == "Pod" {
-			newPod = pod
+	// pod unmarshalling fills the kind field, so the dispatch below does not need
+	// a separate probe of the document
+	if err := yaml.Unmarshal(input, &pod); err != nil {
+		return nil, err
+	}
+
+	// fromTemplate builds a pod out of a workload's template, keeping the
+	// workload's name so the output identifies what it came from
+	fromTemplate := func(name string, template v1.PodTemplateSpec) []v1.Pod {
+		out := v1.Pod{Spec: template.Spec}
+		out.SetName(name)
+		if !hasPodData(out) {
+			return nil
 		}
-	} else {
-		return v1.Pod{}, err
+
+		return []v1.Pod{out}
 	}
 
 	switch pod.Kind {
-	case "Deployment":
-		var deploySpec a1.Deployment
-		err = yaml.Unmarshal(input, &deploySpec)
-		if err == nil {
-			podTemplate := deploySpec.Spec.Template
-			newPod = v1.Pod{
-				Spec: podTemplate.Spec,
-			}
-			newPod.SetName(deploySpec.Name)
-		} else {
-			return v1.Pod{}, err
+	case "Pod":
+		if !hasPodData(pod) {
+			return nil, nil
 		}
+
+		return []v1.Pod{pod}, nil
+
+	case "List":
+		// what `kubectl get pods -o yaml` produces: one document wrapping every
+		// item, rather than one document per pod
+		var list v1.List
+		if err := yaml.Unmarshal(input, &list); err != nil {
+			return nil, err
+		}
+
+		var pods []v1.Pod
+		for i := range list.Items {
+			found, err := b.convertFromYaml(list.Items[i].Raw)
+			if err != nil {
+				return nil, err
+			}
+			pods = append(pods, found...)
+		}
+
+		return pods, nil
+
+	case "Deployment":
+		var spec a1.Deployment
+		if err := yaml.Unmarshal(input, &spec); err != nil {
+			return nil, err
+		}
+
+		return fromTemplate(spec.Name, spec.Spec.Template), nil
 
 	case "ReplicaSet":
-		var replicaSpec a1.ReplicaSet
-		err = yaml.Unmarshal(input, &replicaSpec)
-		if err == nil {
-			podTemplate := replicaSpec.Spec.Template
-			newPod = v1.Pod{
-				Spec: podTemplate.Spec,
-			}
-			newPod.SetName(replicaSpec.Name)
-		} else {
-			return v1.Pod{}, err
+		var spec a1.ReplicaSet
+		if err := yaml.Unmarshal(input, &spec); err != nil {
+			return nil, err
 		}
+
+		return fromTemplate(spec.Name, spec.Spec.Template), nil
 
 	case "StatefulSet":
-		var statefulSpec a1.StatefulSet
-		err = yaml.Unmarshal(input, &statefulSpec)
-		if err == nil {
-			podTemplate := statefulSpec.Spec.Template
-			newPod = v1.Pod{
-				Spec: podTemplate.Spec,
-			}
-			newPod.SetName(statefulSpec.Name)
-		} else {
-			return v1.Pod{}, err
+		var spec a1.StatefulSet
+		if err := yaml.Unmarshal(input, &spec); err != nil {
+			return nil, err
 		}
+
+		return fromTemplate(spec.Name, spec.Spec.Template), nil
 
 	case "DaemonSet":
-		var daemonSpec a1.DaemonSet
-		err = yaml.Unmarshal(input, &daemonSpec)
-		if err == nil {
-			podTemplate := daemonSpec.Spec.Template
-			newPod = v1.Pod{
-				Spec: podTemplate.Spec,
-			}
-			newPod.SetName(daemonSpec.Name)
-		} else {
-			return v1.Pod{}, err
+		var spec a1.DaemonSet
+		if err := yaml.Unmarshal(input, &spec); err != nil {
+			return nil, err
 		}
+
+		return fromTemplate(spec.Name, spec.Spec.Template), nil
 
 	case "Job":
-		var jobSpec batchv1.Job
-		err = yaml.Unmarshal(input, &jobSpec)
-		if err == nil {
-			podTemplate := jobSpec.Spec.Template
-			newPod = v1.Pod{
-				Spec: podTemplate.Spec,
-			}
-			newPod.SetName(jobSpec.Name)
-		} else {
-			return v1.Pod{}, err
+		var spec batchv1.Job
+		if err := yaml.Unmarshal(input, &spec); err != nil {
+			return nil, err
 		}
+
+		return fromTemplate(spec.Name, spec.Spec.Template), nil
 
 	case "CronJob":
-		var cronJobSpec batchv1.CronJob
-		err = yaml.Unmarshal(input, &cronJobSpec)
-		if err == nil {
-			podTemplate := cronJobSpec.Spec.JobTemplate
-			newPod = v1.Pod{
-				Spec: podTemplate.Spec.Template.Spec,
-			}
-			newPod.SetName(cronJobSpec.Name)
-		} else {
-			return v1.Pod{}, err
+		var spec batchv1.CronJob
+		if err := yaml.Unmarshal(input, &spec); err != nil {
+			return nil, err
 		}
+
+		return fromTemplate(spec.Name, spec.Spec.JobTemplate.Spec.Template), nil
 	}
 
-	return newPod, nil
+	return nil, nil
 }

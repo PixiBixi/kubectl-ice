@@ -17,8 +17,8 @@ spec:
     image: nginx:1.27
 `
 
-// listYaml is what `kubectl get pods -o yaml` produces. The reader does not
-// support it, and used to render an empty table instead of saying so.
+// listYaml is what `kubectl get pods -o yaml` produces: one document wrapping
+// every item rather than one document per pod.
 const listYaml = `apiVersion: v1
 kind: List
 items:
@@ -26,6 +26,19 @@ items:
   kind: Pod
   metadata:
     name: nginx
+  spec:
+    containers:
+    - name: web
+      image: nginx:1.27
+`
+
+const serviceYaml = `apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  ports:
+  - port: 80
 `
 
 func TestLoadYamlFromFile(t *testing.T) {
@@ -39,7 +52,8 @@ func TestLoadYamlFromFile(t *testing.T) {
 		{name: "two pods separated by ---", content: podYaml + "---\n" + podYaml, wantPods: 2},
 		{name: "empty input", content: "", wantError: true},
 		{name: "whitespace only", content: "\n\n", wantError: true},
-		{name: "unsupported kind", content: listYaml, wantError: true},
+		{name: "a List contributes its items", content: listYaml, wantPods: 1},
+		{name: "unsupported kind", content: serviceYaml, wantError: true},
 	}
 
 	for _, test := range tests {
