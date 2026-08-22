@@ -352,24 +352,26 @@ func (t *Table) Sprint() string {
 // FprintJson outputs the table to w as json
 func (t *Table) FprintJson(w io.Writer) {
 	fmt.Fprintln(w, "{\"data\":[")
+	var lineBuf strings.Builder
 	for rowNum := 0; rowNum < len(t.data); rowNum++ {
-		line := "{"
+		lineBuf.Reset()
+		lineBuf.WriteString("{")
 		row := t.data[rowNum]
 		for col := 0; col < t.headCount; col++ {
-			word := row[col].text
-			if len(word) == 0 {
-				word = ""
-			}
-			line += fmt.Sprintf("\"%s\": \"%s\"", t.head[col].title, word)
+			lineBuf.WriteString("\"")
+			lineBuf.WriteString(t.head[col].title)
+			lineBuf.WriteString("\": \"")
+			lineBuf.WriteString(row[col].text)
+			lineBuf.WriteString("\"")
 			if col+1 < t.headCount {
-				line += ", "
+				lineBuf.WriteString(", ")
 			}
 		}
-		line += "}"
+		lineBuf.WriteString("}")
 		if rowNum+1 < len(t.data) {
-			line += ", "
+			lineBuf.WriteString(", ")
 		}
-		fmt.Fprintln(w, line)
+		fmt.Fprintln(w, lineBuf.String())
 	}
 	fmt.Fprintln(w, "]}")
 }
@@ -387,19 +389,21 @@ func (t *Table) SprintJson() string {
 // FprintYaml outputs the table to w as yaml
 func (t *Table) FprintYaml(w io.Writer) {
 	fmt.Fprintln(w, "data:")
+	var lineBuf strings.Builder
 	for rowNum := 0; rowNum < len(t.data); rowNum++ {
-		line := ""
+		lineBuf.Reset()
 		sep := "-"
 		row := t.data[rowNum]
 		for col := 0; col < t.headCount; col++ {
-			word := row[col].text
-			if len(word) == 0 {
-				word = ""
-			}
-			line += fmt.Sprintf("%s %s: \"%s\"\n", sep, t.head[col].title, word)
+			lineBuf.WriteString(sep)
+			lineBuf.WriteString(" ")
+			lineBuf.WriteString(t.head[col].title)
+			lineBuf.WriteString(": \"")
+			lineBuf.WriteString(row[col].text)
+			lineBuf.WriteString("\"\n")
 			sep = " "
 		}
-		fmt.Fprint(w, line)
+		fmt.Fprint(w, lineBuf.String())
 	}
 }
 
@@ -443,31 +447,29 @@ func (t *Table) FprintCsv(w io.Writer) {
 		return
 	}
 
-	line := ""
-	row := t.data[0]
+	var lineBuf strings.Builder
 	for col := 0; col < t.headCount; col++ {
-		line += fmt.Sprintf("\"%s\"", t.head[col].title)
+		lineBuf.WriteString("\"")
+		lineBuf.WriteString(t.head[col].title)
+		lineBuf.WriteString("\"")
 		if col+1 < t.headCount {
-			line += ", "
+			lineBuf.WriteString(", ")
 		}
 	}
-	fmt.Fprintln(w, line)
-	_ = row
+	fmt.Fprintln(w, lineBuf.String())
 
 	for rowNum := 0; rowNum < len(t.data); rowNum++ {
-		line := ""
+		lineBuf.Reset()
 		row := t.data[rowNum]
 		for col := 0; col < t.headCount; col++ {
-			word := row[col].text
-			if len(word) == 0 {
-				word = ""
-			}
-			line += fmt.Sprintf("\"%s\"", word)
+			lineBuf.WriteString("\"")
+			lineBuf.WriteString(row[col].text)
+			lineBuf.WriteString("\"")
 			if col+1 < t.headCount {
-				line += ", "
+				lineBuf.WriteString(", ")
 			}
 		}
-		fmt.Fprintln(w, line)
+		fmt.Fprintln(w, lineBuf.String())
 	}
 }
 
