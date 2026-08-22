@@ -71,12 +71,6 @@ type ParentData struct {
 	kind          string
 	kindIndicator string
 	namespace     string
-	deployment    a1.Deployment
-	replica       a1.ReplicaSet
-	stateful      a1.StatefulSet
-	daemon        a1.DaemonSet
-	job           batchv1.Job
-	cronjob       batchv1.CronJob
 	pod           v1.Pod
 }
 
@@ -635,9 +629,9 @@ func (c *Connector) GetDeployment(deploymentName string, namespace string) *a1.D
 		}
 	}
 
-	for _, d := range de {
-		if d.Name == deploymentName {
-			return &d
+	for i := range de {
+		if de[i].Name == deploymentName {
+			return &de[i]
 		}
 	}
 	return nil
@@ -771,9 +765,9 @@ func (c *Connector) GetStatefulSet(statefulsetName string, namespace string) *a1
 		}
 	}
 
-	for _, s := range ss {
-		if s.Name == statefulsetName {
-			return &s
+	for i := range ss {
+		if ss[i].Name == statefulsetName {
+			return &ss[i]
 		}
 	}
 	return nil
@@ -839,9 +833,9 @@ func (c *Connector) GetJob(jobName string, namespace string) *batchv1.Job {
 		}
 	}
 
-	for _, j := range cj {
-		if j.Name == jobName {
-			return &j
+	for i := range cj {
+		if cj[i].Name == jobName {
+			return &cj[i]
 		}
 	}
 	return nil
@@ -907,9 +901,9 @@ func (c *Connector) GetCronJob(jobName string, namespace string) *batchv1.CronJo
 		}
 	}
 
-	for _, j := range cj {
-		if j.Name == jobName {
-			return &j
+	for i := range cj {
+		if cj[i].Name == jobName {
+			return &cj[i]
 		}
 	}
 	return nil
@@ -1017,13 +1011,13 @@ func (c *Connector) BuildOwnersList() []*LeafNode {
 
 		// finally we can loop through the above list adding children to the tree where they are needed and using child nodes if they already exist
 		current := &rootnode
-		for i, v := range parentList {
-			child := current.getChild(v.name)
-			child.kind = v.kind
-			child.kindIndicator = v.kindIndicator
-			child.namespace = v.namespace
+		for i := range parentList {
+			child := current.getChild(parentList[i].name)
+			child.kind = parentList[i].kind
+			child.kindIndicator = parentList[i].kindIndicator
+			child.namespace = parentList[i].namespace
 			child.indent = i
-			child.data = v
+			child.data = parentList[i]
 			current = child
 		}
 
@@ -1065,7 +1059,6 @@ func (c *Connector) appendParents(current []ParentData, oref []metav1.OwnerRefer
 					kind:          v.Kind,
 					kindIndicator: TypeIDDeployment,
 					namespace:     deployment.Namespace,
-					deployment:    *deployment,
 				}), deployment.GetOwnerReferences(), nodename, namespace)
 			}
 		}
@@ -1077,7 +1070,6 @@ func (c *Connector) appendParents(current []ParentData, oref []metav1.OwnerRefer
 					kind:          v.Kind,
 					kindIndicator: TypeIDReplicaSet,
 					namespace:     replica.Namespace,
-					replica:       *replica,
 				}), replica.GetOwnerReferences(), nodename, namespace)
 			}
 		}
@@ -1089,7 +1081,6 @@ func (c *Connector) appendParents(current []ParentData, oref []metav1.OwnerRefer
 					kind:          v.Kind,
 					kindIndicator: TypeIDDaemonSet,
 					namespace:     daemon.Namespace,
-					daemon:        *daemon,
 				}), daemon.GetOwnerReferences(), nodename, namespace)
 			}
 		}
@@ -1101,7 +1092,6 @@ func (c *Connector) appendParents(current []ParentData, oref []metav1.OwnerRefer
 					kind:          v.Kind,
 					kindIndicator: TypeIDStatefulSet,
 					namespace:     stateful.Namespace,
-					stateful:      *stateful,
 				}), stateful.GetOwnerReferences(), nodename, namespace)
 			}
 		}
@@ -1113,7 +1103,6 @@ func (c *Connector) appendParents(current []ParentData, oref []metav1.OwnerRefer
 					kind:          v.Kind,
 					kindIndicator: TypeIDJob,
 					namespace:     job.Namespace,
-					job:           *job,
 				}), job.GetOwnerReferences(), nodename, namespace)
 			}
 		}
@@ -1125,7 +1114,6 @@ func (c *Connector) appendParents(current []ParentData, oref []metav1.OwnerRefer
 					kind:          v.Kind,
 					kindIndicator: TypeIDCronJob,
 					namespace:     job.Namespace,
-					cronjob:       *job,
 				}), job.GetOwnerReferences(), nodename, namespace)
 			}
 		}
