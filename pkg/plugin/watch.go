@@ -134,7 +134,7 @@ func (b *RowBuilder) pipeEvents(ctx context.Context, watcher watch.Interface, lo
 				p.Send(errMsg(fmt.Sprintf("pre-build error: %v", err)))
 			}
 		}
-		b.Connection.ClearPodCache()
+		b.Connection.ClearCache()
 		b.resetTable()
 		if err := b.Build(loop); err != nil {
 			p.Send(errMsg(fmt.Sprintf("refresh error: %v", err)))
