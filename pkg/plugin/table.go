@@ -77,7 +77,10 @@ func (t *Table) AddRow(row ...Cell) {
 	log.Debug("Start")
 
 	if t.headCount > len(row) {
-		panic("not enough columns in provided row")
+		// an internal invariant: rows are built from the header definition, so a
+		// short row means a Looper returned the wrong shape. Say which one is
+		// wrong rather than only that something is.
+		panic(fmt.Sprintf("table has %d columns but the row provides %d cells", t.headCount, len(row)))
 	}
 
 	for i := 0; i < t.headCount; i++ {
@@ -143,7 +146,9 @@ func (t *Table) HideColumn(columnNumber int) {
 		log.Debug("hide =", t.head[columnNumber].title)
 		t.head[columnNumber].hidden = true
 	} else {
-		panic(fmt.Sprintln("invalid column number", columnNumber))
+		// same, the callers pass constants or indexes a Looper reported through
+		// HideColumns. --columns goes through HideOnlyNamedColumns, which errors.
+		panic(fmt.Sprintf("cannot hide column %d, the table has %d", columnNumber, len(t.head)))
 	}
 }
 
@@ -608,47 +613,42 @@ func (t *Table) SortByNames(name ...string) error {
 	return nil
 }
 
-// strMatch run a pattten match, accepts * and ?
+// strMatch runs a wildcard match supporting * and ?. The star crosses a slash,
+// unlike path.Match, because --match IMAGE=*app* has to match an image name.
+//
+// Two pointers with a backtrack rather than the previous dynamic programming
+// table, which allocated len(str)+1 slices of len(pattern)+1 bools on every
+// call, once per row per filter.
 func strMatch(str string, pattern string) bool {
-	// shamelessly converted from c++ code on web as I was too lazy to work it out myself
-	// source: https://www.geeksforgeeks.org/wildcard-pattern-matching/
+	var s, p int
+	star, mark := -1, 0
 
-	n := len(str)
-	m := len(pattern)
-
-	if m == 0 {
-		return (n == 0)
-	}
-
-	lookup := make([][]bool, n+1)
-	for i := range lookup {
-		lookup[i] = make([]bool, m+1)
-	}
-
-	lookup[0][0] = true
-
-	for i, char := range pattern {
-		j := i + 1
-		if char == '*' {
-			lookup[0][j] = lookup[0][j-1]
+	for s < len(str) {
+		switch {
+		case p < len(pattern) && (pattern[p] == '?' || pattern[p] == str[s]):
+			s++
+			p++
+		case p < len(pattern) && pattern[p] == '*':
+			// remember where to resume if the rest fails to line up
+			star = p
+			mark = s
+			p++
+		case star >= 0:
+			// backtrack: let the last star swallow one more byte
+			p = star + 1
+			mark++
+			s = mark
+		default:
+			return false
 		}
 	}
 
-	for q, s := range str {
-		i := q + 1
-		for w, char := range pattern {
-			j := w + 1
-			switch {
-			case char == '*':
-				lookup[i][j] = lookup[i][j-1] || lookup[i-1][j]
-			case char == '?' || s == char:
-				lookup[i][j] = lookup[i-1][j-1]
-			default:
-				lookup[i][j] = false
-			}
-		}
+	// trailing stars can match the empty remainder
+	for p < len(pattern) && pattern[p] == '*' {
+		p++
 	}
-	return lookup[n][m]
+
+	return p == len(pattern)
 }
 
 func NewCellEmpty() Cell {

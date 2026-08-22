@@ -11,6 +11,11 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 )
 
+// defaultDebounceWindow is how long we wait for more pod events before
+// rebuilding. A rollout or a job burst fires many events and a rebuild refetches
+// everything regardless, so one rebuild per event only adds lag.
+const defaultDebounceWindow = 250 * time.Millisecond
+
 // contentMsg carries new table content to the Bubble Tea model.
 type contentMsg string
 
@@ -161,7 +166,40 @@ func (b *RowBuilder) pipeEvents(ctx context.Context, watcher watch.Interface, lo
 			if _, ok := event.Object.(*v1.Pod); !ok {
 				continue
 			}
+
+			window := b.DebounceWindow
+			if window <= 0 {
+				window = defaultDebounceWindow
+			}
+			stillOpen := coalescePodEvents(ctx, watcher, window)
+
 			rebuild()
+
+			if !stillOpen {
+				return ctx.Err() == nil // closed means reconnect, cancelled means stop
+			}
+		}
+	}
+}
+
+// coalescePodEvents swallows further events for the debounce window so a burst
+// of them produces a single rebuild. It reports whether the stream is still
+// usable: false means it closed or the context was cancelled, and the caller
+// must not keep reading it.
+func coalescePodEvents(ctx context.Context, watcher watch.Interface, window time.Duration) bool {
+	timer := time.NewTimer(window)
+	defer timer.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return false
+		case <-timer.C:
+			return true
+		case _, ok := <-watcher.ResultChan():
+			if !ok {
+				return false
+			}
 		}
 	}
 }
