@@ -211,7 +211,7 @@ func (s *security) securityBuildRow(info BuilderInformation, csc *v1.SecurityCon
 		}
 
 		if csc.RunAsGroup != nil {
-			rag = NewCellInt(fmt.Sprintf("%d", *psc.RunAsGroup), *csc.RunAsGroup)
+			rag = NewCellInt(fmt.Sprintf("%d", *csc.RunAsGroup), *csc.RunAsGroup)
 		}
 	}
 
@@ -262,7 +262,7 @@ func (s *security) seLinuxBuildRow(info BuilderInformation, csc *v1.SecurityCont
 
 	if csc != nil {
 		if csc.SELinuxOptions != nil {
-			cselinux := psc.SELinuxOptions
+			cselinux := csc.SELinuxOptions
 			if len(cselinux.Level) > 0 {
 				seLevel = NewCellText(cselinux.Level)
 			}
