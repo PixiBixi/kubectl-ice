@@ -4,6 +4,8 @@
     "config:recommended",
     "helpers:pinGitHubActionDigests"
   ],
+  "// forkProcessing": "this repository is a fork of NimbleArchitect/kubectl-ice, and renovate skips forks unless told otherwise",
+  "forkProcessing": "enabled",
   "labels": ["dependencies"],
   "assignees": ["PixiBixi"],
   "semanticCommits": "enabled",
