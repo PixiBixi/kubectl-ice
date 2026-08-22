@@ -53,90 +53,30 @@ var statusExample = `  # List individual container status from pods
   %[1]s status -l "app in (web,mail)"`
 
 func Status(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, args []string) error {
-
-	log := logger{location: "Status"}
-	log.Debug("Start")
-
-	builder := RowBuilder{}
-	builder.LoopStatus = true
-	builder.ShowInitContainers = true
-	builder.PodName = args
-
-	connect := Connector{}
-	if err := connect.LoadConfig(cmd.Context(), kubeFlags); err != nil {
-		return err
-	}
-
-	commonFlagList, err := processCommonFlags(cmd)
-	if err != nil {
-		return err
-	}
-	connect.Flags = commonFlagList
-
 	loopinfo := status{}
-	builder.Connection = &connect
-	builder.SetFlagsFrom(commonFlagList)
 
-	if cmd.Flag("previous").Value.String() == "true" {
-		log.Debug("loopinfo.ShowPrevious = true")
-		loopinfo.ShowPrevious = true
-	}
-
-	if cmd.Flag("details").Value.String() == "true" {
-		loopinfo.ShowDetails = true
-		builder.ShowContainerType = true
-	}
-
-	if cmd.Flag("id").Value.String() == "true" {
-		log.Debug("loopinfo.ShowID = true")
-		loopinfo.ShowID = true
-	}
-
-	table := Table{}
-	table.ColourOutput = commonFlagList.outputAsColour
-	table.CustomColours = commonFlagList.useTheseColours
-
-	builder.Table = &table
-	log.Debug("commonFlagList.showTreeView =", commonFlagList.showTreeView)
-	builder.ShowTreeView = commonFlagList.showTreeView
-
-	renderFn := func() (string, error) {
-		if !builder.ShowTreeView {
-			if !loopinfo.ShowPrevious {
-				if commonFlagList.showOddities {
-					row2Remove, err := builder.Table.ListOutOfRange(builder.DefaultHeaderLen + 2)
-					if err != nil {
-						return "", err
-					}
-					builder.Table.HideRows(row2Remove)
-				}
+	return runSubCommand(cmd, kubeFlags, args, subCommand{
+		loop:               &loopinfo,
+		loopStatus:         true,
+		showInitContainers: true,
+		configure: func(run runContext) error {
+			loopinfo.ShowPrevious = run.cmd.Flag("previous").Value.String() == "true"
+			loopinfo.ShowID = run.cmd.Flag("id").Value.String() == "true"
+			if run.cmd.Flag("details").Value.String() == "true" {
+				loopinfo.ShowDetails = true
+				run.builder.ShowContainerType = true
 			}
-		}
-		return sprintTableAs(*builder.Table, commonFlagList.outputAs), nil
-	}
-
-	if commonFlagList.watch {
-		return builder.WatchBuild(&loopinfo, renderFn)
-	}
-
-	if err := builder.Build(&loopinfo); err != nil {
-		return err
-	}
-
-	if !builder.ShowTreeView {
-		if !loopinfo.ShowPrevious {
-			if commonFlagList.showOddities {
-				row2Remove, err := builder.Table.ListOutOfRange(builder.DefaultHeaderLen + 2)
-				if err != nil {
-					return err
-				}
-				builder.Table.HideRows(row2Remove)
+			return nil
+		},
+		filterRows: func(run runContext) error {
+			// the oddities range is meaningless on a tree, and --previous shows
+			// terminated containers where an outlier is the point
+			if run.builder.ShowTreeView || loopinfo.ShowPrevious {
+				return nil
 			}
-		}
-	}
-	outputTableAs(table, commonFlagList.outputAs)
-	return nil
-
+			return hideOutOfRange(run, run.builder.DefaultHeaderLen+2)
+		},
+	})
 }
 
 type status struct {

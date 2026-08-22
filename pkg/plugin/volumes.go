@@ -47,59 +47,17 @@ var volumesExample = `  # List volumes from containers inside pods from current 
   %[1]s volumes -l "app in (web,mail)"`
 
 func Volumes(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, args []string) error {
-
-	log := logger{location: "Volumes"}
-	log.Debug("Start")
-
 	loopinfo := volumes{}
-	builder := RowBuilder{}
-	builder.LoopSpec = true
-	builder.ShowInitContainers = true
-	builder.PodName = args
 
-	connect := Connector{}
-	if err := connect.LoadConfig(cmd.Context(), kubeFlags); err != nil {
-		return err
-	}
-
-	commonFlagList, err := processCommonFlags(cmd)
-	if err != nil {
-		return err
-	}
-	connect.Flags = commonFlagList
-	builder.Connection = &connect
-	builder.SetFlagsFrom(commonFlagList)
-
-	if cmd.Flag("device").Value.String() == "true" {
-		loopinfo.ShowVolumeDevice = true
-	}
-
-	table := Table{}
-	table.ColourOutput = commonFlagList.outputAsColour
-	table.CustomColours = commonFlagList.useTheseColours
-
-	builder.Table = &table
-	builder.ShowTreeView = commonFlagList.showTreeView
-
-	renderFn := func() (string, error) {
-		return sprintTableAs(*builder.Table, commonFlagList.outputAs), nil
-	}
-
-	if commonFlagList.watch {
-		return builder.WatchBuild(&loopinfo, renderFn)
-	}
-
-	if err := builder.Build(&loopinfo); err != nil {
-		return err
-	}
-
-	if err := table.SortByNames(commonFlagList.sortList...); err != nil {
-		return err
-	}
-
-	outputTableAs(table, commonFlagList.outputAs)
-	return nil
-
+	return runSubCommand(cmd, kubeFlags, args, subCommand{
+		loop:               &loopinfo,
+		loopSpec:           true,
+		showInitContainers: true,
+		configure: func(run runContext) error {
+			loopinfo.ShowVolumeDevice = run.cmd.Flag("device").Value.String() == "true"
+			return nil
+		},
+	})
 }
 
 type volumes struct {

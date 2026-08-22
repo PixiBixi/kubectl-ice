@@ -48,69 +48,23 @@ var portsExample = `  # List containers port info from pods
 //		runip - true = show ip details only
 //	          - false = show all port info except ip info
 func Ports(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, args []string, runip bool) error {
-
-	log := logger{location: "Ports"}
-	log.Debug("Start")
-
 	loopinfo := ports{}
-	builder := RowBuilder{}
 
-	if runip {
-		builder.DontListContainers = true
-		loopinfo.DontListContainers = builder.DontListContainers
-	}
+	return runSubCommand(cmd, kubeFlags, args, subCommand{
+		loop:               &loopinfo,
+		loopSpec:           true,
+		showInitContainers: true,
+		// the ip subcommand shares this Looper but lists one row per pod
+		dontListContainers: runip,
+		configure: func(run runContext) error {
+			loopinfo.DontListContainers = runip
+			if run.cmd.Flag("show-ip") != nil {
+				loopinfo.ShowIPAddress = run.cmd.Flag("show-ip").Value.String() == "true"
+			}
 
-	if cmd.Flag("show-ip") != nil {
-		if cmd.Flag("show-ip").Value.String() == "true" {
-			log.Debug("loopinfo.ShowIPAddress = true")
-			loopinfo.ShowIPAddress = true
-		}
-	}
-
-	builder.ShowInitContainers = true
-	builder.LoopSpec = true
-
-	builder.PodName = args
-
-	connect := Connector{}
-	if err := connect.LoadConfig(cmd.Context(), kubeFlags); err != nil {
-		return err
-	}
-
-	commonFlagList, err := processCommonFlags(cmd)
-	if err != nil {
-		return err
-	}
-	connect.Flags = commonFlagList
-	builder.Connection = &connect
-	builder.SetFlagsFrom(commonFlagList)
-
-	table := Table{}
-	table.ColourOutput = commonFlagList.outputAsColour
-	table.CustomColours = commonFlagList.useTheseColours
-
-	builder.Table = &table
-	builder.ShowTreeView = commonFlagList.showTreeView
-
-	renderFn := func() (string, error) {
-		return sprintTableAs(*builder.Table, commonFlagList.outputAs), nil
-	}
-
-	if commonFlagList.watch {
-		return builder.WatchBuild(&loopinfo, renderFn)
-	}
-
-	if err := builder.Build(&loopinfo); err != nil {
-		return err
-	}
-
-	if err := table.SortByNames(commonFlagList.sortList...); err != nil {
-		return err
-	}
-
-	outputTableAs(table, commonFlagList.outputAs)
-	return nil
-
+			return nil
+		},
+	})
 }
 
 type ports struct {

@@ -58,113 +58,63 @@ func resourceExample(r string) string {
 }
 
 func Resources(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, args []string, resourceType string) error {
-
 	log := logger{location: "Resource"}
-	log.Debug("Start", resourceType)
+	loopinfo := resource{ResourceType: resourceType}
 
-	builder := RowBuilder{}
-	builder.LoopSpec = true
-	builder.PodName = args
-
-	connect := Connector{}
-	if err := connect.LoadConfig(cmd.Context(), kubeFlags); err != nil {
-		return err
-	}
-
-	commonFlagList, err := processCommonFlags(cmd)
-	if err != nil {
-		return err
-	}
-	connect.Flags = commonFlagList
-
-	loopinfo := resource{}
-	builder.Connection = &connect
-	builder.SetFlagsFrom(commonFlagList)
-
-	loopinfo.ResourceType = resourceType
-
-	stdinChanged, err := builder.HasStdinChanged()
-	if err != nil {
-		return err
-	}
-
-	// only need to pull metrics info we are reading live data,
-	// if we read from a file metric data wont exist
-	if len(commonFlagList.inputFilename) == 0 && !stdinChanged {
-		if err := connect.LoadMetricConfig(kubeFlags); err != nil {
-			return err
-		}
-		podStateList, err := connect.GetMetricPods(args)
-		if err != nil {
-			log.Tell(err)
-		} else {
-			loopinfo.MetricsResource = loopinfo.podMetrics2Hashtable(podStateList)
-		}
-	}
-
-	if cmd.Flag("size") != nil {
-		if len(cmd.Flag("size").Value.String()) > 0 {
-			loopinfo.BytesAs = cmd.Flag("size").Value.String()
-		}
-	}
-
-	if cmd.Flag("raw").Value.String() == "true" {
-		loopinfo.ShowRaw = true
-		loopinfo.BytesAs = "M"
-	}
-
-	table := Table{}
-	table.ColourOutput = commonFlagList.outputAsColour
-	table.CustomColours = commonFlagList.useTheseColours
-
-	builder.Table = &table
-	builder.ShowTreeView = commonFlagList.showTreeView
-
-	renderFn := func() (string, error) {
-		if commonFlagList.showOddities {
-			row2Remove, err := builder.Table.ListOutOfRange(builder.DefaultHeaderLen)
-			if err != nil {
-				return "", err
+	return runSubCommand(cmd, kubeFlags, args, subCommand{
+		loop:     &loopinfo,
+		loopSpec: true,
+		configure: func(run runContext) error {
+			if run.cmd.Flag("size") != nil && len(run.cmd.Flag("size").Value.String()) > 0 {
+				loopinfo.BytesAs = run.cmd.Flag("size").Value.String()
 			}
-			builder.Table.HideRows(row2Remove)
-		}
-		return sprintTableAs(*builder.Table, commonFlagList.outputAs), nil
-	}
+			if run.cmd.Flag("raw").Value.String() == "true" {
+				loopinfo.ShowRaw = true
+				loopinfo.BytesAs = "M"
+			}
 
-	if commonFlagList.watch {
-		builder.RefreshInterval = 25 * time.Second
-		// Re-fetch metrics before each Build in watch mode
-		if len(commonFlagList.inputFilename) == 0 && !stdinChanged {
-			builder.PreBuildFn = func() error {
-				podStateList, err := connect.GetMetricPods(args)
+			stdinChanged, err := run.builder.HasStdinChanged()
+			if err != nil {
+				return err
+			}
+			if len(run.flags.inputFilename) > 0 || stdinChanged {
+				// reading yaml, there are no metrics to go with it
+				return nil
+			}
+
+			if err := run.connect.LoadMetricConfig(kubeFlags); err != nil {
+				return err
+			}
+
+			fetchMetrics := func() error {
+				podStateList, err := run.connect.GetMetricPods(run.args)
 				if err != nil {
+					// metrics server missing or unreachable is not fatal, the
+					// configured sizes are still worth showing
 					log.Tell(err)
 					return nil
 				}
 				loopinfo.MetricsResource = loopinfo.podMetrics2Hashtable(podStateList)
+
 				return nil
 			}
-		}
-		return builder.WatchBuild(&loopinfo, renderFn)
-	}
 
-	if err := builder.Build(&loopinfo); err != nil {
-		return err
-	}
+			if err := fetchMetrics(); err != nil {
+				return err
+			}
 
-	if err := table.SortByNames(commonFlagList.sortList...); err != nil {
-		return err
-	}
+			if run.flags.watch {
+				// pod events do not fire when only the usage moves, so poll
+				run.builder.RefreshInterval = 25 * time.Second
+				run.builder.PreBuildFn = fetchMetrics
+			}
 
-	if commonFlagList.showOddities {
-		row2Remove, err := builder.Table.ListOutOfRange(builder.DefaultHeaderLen)
-		if err != nil {
-			return err
-		}
-		builder.Table.HideRows(row2Remove)
-	}
-	outputTableAs(table, commonFlagList.outputAs)
-	return nil
+			return nil
+		},
+		filterRows: func(run runContext) error {
+			return hideOutOfRange(run, run.builder.DefaultHeaderLen)
+		},
+	})
 }
 
 type resource struct {

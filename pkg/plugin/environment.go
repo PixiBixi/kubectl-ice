@@ -42,62 +42,18 @@ var environmentExample = `  # List containers env info from pods
   %[1]s env -l "app in (web,mail)"`
 
 func Environment(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, args []string) error {
-	log := logger{location: "Environment"}
-	log.Debug("Start")
-
 	loopinfo := environment{}
-	builder := RowBuilder{}
-	builder.LoopSpec = true
-	builder.ShowInitContainers = true
-	builder.PodName = args
 
-	connect := Connector{}
-	if err := connect.LoadConfig(cmd.Context(), kubeFlags); err != nil {
-		return err
-	}
-
-	commonFlagList, err := processCommonFlags(cmd)
-	if err != nil {
-		return err
-	}
-	connect.Flags = commonFlagList
-
-	builder.Connection = &connect
-	builder.SetFlagsFrom(commonFlagList)
-
-	// we need the connection details so we can translate the environment variables
-	loopinfo.Connection = &connect
-
-	if cmd.Flag("translate").Value.String() == "true" {
-		loopinfo.TranslateConfigMap = true
-	}
-
-	table := Table{}
-	table.ColourOutput = commonFlagList.outputAsColour
-	table.CustomColours = commonFlagList.useTheseColours
-
-	builder.Table = &table
-	builder.ShowTreeView = commonFlagList.showTreeView
-
-	renderFn := func() (string, error) {
-		return sprintTableAs(*builder.Table, commonFlagList.outputAs), nil
-	}
-
-	if commonFlagList.watch {
-		return builder.WatchBuild(&loopinfo, renderFn)
-	}
-
-	if err := builder.Build(&loopinfo); err != nil {
-		return err
-	}
-
-	if err := table.SortByNames(commonFlagList.sortList...); err != nil {
-		return err
-	}
-
-	outputTableAs(table, commonFlagList.outputAs)
-	return nil
-
+	return runSubCommand(cmd, kubeFlags, args, subCommand{
+		loop:               &loopinfo,
+		loopSpec:           true,
+		showInitContainers: true,
+		configure: func(run runContext) error {
+			loopinfo.Connection = run.connect
+			loopinfo.TranslateConfigMap = run.cmd.Flag("translate").Value.String() == "true"
+			return nil
+		},
+	})
 }
 
 type environment struct {
