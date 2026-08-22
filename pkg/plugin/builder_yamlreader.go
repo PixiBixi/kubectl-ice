@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"log"
 	"os"
 	"sync"
 	"time"
@@ -46,7 +45,7 @@ func (b *RowBuilder) loadYaml(filename string) ([]v1.Pod, error) {
 		// load yaml file
 		file, err := os.Open(filename)
 		if err != nil {
-			log.Fatal(err)
+			return []v1.Pod{}, fmt.Errorf("failed to open %s: %w", filename, err)
 		}
 		defer file.Close()
 		scanner = bufio.NewScanner(file)
@@ -70,7 +69,7 @@ func (b *RowBuilder) loadYaml(filename string) ([]v1.Pod, error) {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
+		return []v1.Pod{}, fmt.Errorf("failed to read the yaml input: %w", err)
 	}
 
 	pod, err := b.convertFromYaml([]byte(content))

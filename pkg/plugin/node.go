@@ -125,12 +125,6 @@ func NodeResources(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags,
 	}
 	table.SetHeader(headers...)
 
-	var hideColumns []int
-	if !showUsage {
-		// hide the usage columns slot even if not appended — nothing to hide here
-		// (they simply don't exist)
-	}
-
 	for _, node := range nodes {
 		alloc := allocations[node.Name]
 
@@ -222,8 +216,6 @@ func NodeResources(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags,
 
 		table.AddRow(row...)
 	}
-
-	_ = hideColumns // reserved for future use
 
 	if err := table.SortByNames(commonFlagList.sortList...); err != nil {
 		return err

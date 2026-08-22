@@ -173,7 +173,7 @@ func (s *ports) BuildEphemeralContainerSpec(container v1.EphemeralContainer, inf
 func (s *ports) portsBuildRow(info BuilderInformation, port v1.ContainerPort) []Cell {
 	var cellList []Cell
 
-	hostPort := Cell{}
+	var hostPort Cell
 
 	if port.HostPort > 0 {
 		hostPort = NewCellInt(strconv.Itoa(int(port.HostPort)), int64(port.HostPort))

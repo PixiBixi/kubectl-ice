@@ -529,7 +529,7 @@ func (b *RowBuilder) setFilter(filter map[string]matchValue) error {
 				return errors.New("invalid operator found")
 			}
 
-			if len(value) <= 0 {
+			if len(value) == 0 {
 				return errors.New("invalid value specified for filter")
 			}
 

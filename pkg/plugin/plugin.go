@@ -677,7 +677,7 @@ func splitAndFilterList(rawSortString string, filterString string) ([]string, er
 	for i := range rawSortList {
 		safeStr := ""
 		rawItem := strings.TrimSpace(rawSortList[i])
-		if len(rawItem) <= 0 {
+		if len(rawItem) == 0 {
 			continue
 		}
 
@@ -714,7 +714,7 @@ func splitAndFilterMatchList(rawSortString string, filterString string, operator
 	for i := range rawSortList {
 		safeStr := ""
 		rawItem := strings.TrimSpace(rawSortList[i])
-		if len(rawItem) <= 0 {
+		if len(rawItem) == 0 {
 			continue
 		}
 
