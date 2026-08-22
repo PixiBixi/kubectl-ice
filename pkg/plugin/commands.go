@@ -60,7 +60,7 @@ func Commands(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, args
 	builder.PodName = args
 
 	connect := Connector{}
-	if err := connect.LoadConfig(kubeFlags); err != nil {
+	if err := connect.LoadConfig(cmd.Context(), kubeFlags); err != nil {
 		return err
 	}
 

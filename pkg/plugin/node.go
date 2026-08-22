@@ -46,7 +46,7 @@ func NodeResources(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags,
 	log.Debug("Start")
 
 	connect := Connector{}
-	if err := connect.LoadConfig(kubeFlags); err != nil {
+	if err := connect.LoadConfig(cmd.Context(), kubeFlags); err != nil {
 		return err
 	}
 

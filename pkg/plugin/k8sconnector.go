@@ -65,6 +65,7 @@ type Connector struct {
 	jobList           map[string][]batchv1.Job     // list of k8s Jobs
 	cronJobList       map[string][]batchv1.CronJob // list of k8s CronJobs
 	loadedAll         map[string]bool              // kinds already listed cluster wide, see recordLoaded
+	ctx               context.Context              // request context, cancelled on ctrl-c, see LoadConfig
 }
 
 type ParentData struct {
@@ -107,9 +108,22 @@ func (n *LeafNode) getChild(name string) *LeafNode {
 }
 
 // load config for the k8s endpoint
-func (c *Connector) LoadConfig(configFlags *genericclioptions.ConfigFlags) error {
+// requestContext returns the cancellable context for api calls. It falls back
+// to Background so a Connector built without LoadConfig, as the tests do, still
+// works.
+func (c *Connector) requestContext() context.Context {
+	if c.ctx == nil {
+		return context.Background()
+	}
+	return c.ctx
+}
+
+// LoadConfig builds the clientset. ctx comes from cobra and is cancelled when
+// the user interrupts, so every request below can be abandoned mid flight.
+func (c *Connector) LoadConfig(ctx context.Context, configFlags *genericclioptions.ConfigFlags) error {
 	c.clientSet = kubernetes.Clientset{}
 	c.configFlags = configFlags
+	c.ctx = ctx
 	config, err := configFlags.ToRESTConfig()
 
 	if err != nil {
@@ -217,7 +231,7 @@ func (c *Connector) GetNodes(nodeNameList []string) ([]v1.Node, error) {
 		if len(c.Flags.labels) > 0 {
 			selector.LabelSelector = c.Flags.labels
 		}
-		nodes, err := c.clientSet.CoreV1().Nodes().List(context.TODO(), selector)
+		nodes, err := c.clientSet.CoreV1().Nodes().List(c.requestContext(), selector)
 		if err != nil {
 			return []v1.Node{}, fmt.Errorf("failed to retrieve node list from server: %w", err)
 		}
@@ -228,7 +242,7 @@ func (c *Connector) GetNodes(nodeNameList []string) ([]v1.Node, error) {
 
 	case 1:
 		// single node: direct Get is cheapest
-		node, err := c.clientSet.CoreV1().Nodes().Get(context.TODO(), nodeNameList[0], metav1.GetOptions{})
+		node, err := c.clientSet.CoreV1().Nodes().Get(c.requestContext(), nodeNameList[0], metav1.GetOptions{})
 		if err != nil {
 			return []v1.Node{}, fmt.Errorf("failed to retrieve node from server: %w", err)
 		}
@@ -240,7 +254,7 @@ func (c *Connector) GetNodes(nodeNameList []string) ([]v1.Node, error) {
 		for _, n := range nodeNameList {
 			needed[n] = struct{}{}
 		}
-		all, err := c.clientSet.CoreV1().Nodes().List(context.TODO(), metav1.ListOptions{})
+		all, err := c.clientSet.CoreV1().Nodes().List(c.requestContext(), metav1.ListOptions{})
 		if err != nil {
 			return []v1.Node{}, fmt.Errorf("failed to retrieve node list from server: %w", err)
 		}
@@ -330,7 +344,7 @@ func (c *Connector) GetMetricPods(podNameList []string) ([]v1beta1.PodMetrics, e
 			}
 
 			// single pod
-			pod, err := c.metricSet.MetricsV1beta1().PodMetricses(namespace).Get(context.TODO(), podname, metav1.GetOptions{})
+			pod, err := c.metricSet.MetricsV1beta1().PodMetricses(namespace).Get(c.requestContext(), podname, metav1.GetOptions{})
 			if err == nil {
 				podList = append(podList, []v1beta1.PodMetrics{*pod}...)
 			} else {
@@ -344,7 +358,7 @@ func (c *Connector) GetMetricPods(podNameList []string) ([]v1beta1.PodMetrics, e
 			selector.LabelSelector = c.Flags.labels
 		}
 
-		podList, err := c.metricSet.MetricsV1beta1().PodMetricses(namespace).List(context.TODO(), selector)
+		podList, err := c.metricSet.MetricsV1beta1().PodMetricses(namespace).List(c.requestContext(), selector)
 		if err == nil {
 			if len(podList.Items) == 0 {
 				return []v1beta1.PodMetrics{}, errors.New("no metric info found for pods in namespace")
@@ -365,7 +379,7 @@ func (c *Connector) GetConfigMaps(configMapName string) (v1.ConfigMap, error) {
 		return v1.ConfigMap{}, nil
 	}
 
-	cm, err := c.clientSet.CoreV1().ConfigMaps(namespace).Get(context.TODO(), configMapName, metav1.GetOptions{})
+	cm, err := c.clientSet.CoreV1().ConfigMaps(namespace).Get(c.requestContext(), configMapName, metav1.GetOptions{})
 	if err == nil {
 		return *cm, nil
 	}
@@ -490,7 +504,7 @@ func (c *Connector) LoadPods(podNameList []string) error {
 
 		// single pod
 		for _, podname := range podNameList {
-			pod, err := c.clientSet.CoreV1().Pods(namespace).Get(context.TODO(), podname, metav1.GetOptions{})
+			pod, err := c.clientSet.CoreV1().Pods(namespace).Get(c.requestContext(), podname, metav1.GetOptions{})
 			if err == nil {
 				podList = append(podList, []v1.Pod{*pod}...)
 			} else {
@@ -508,7 +522,7 @@ func (c *Connector) LoadPods(podNameList []string) error {
 		selector.LabelSelector = c.Flags.labels
 	}
 
-	pods, err := c.clientSet.CoreV1().Pods(namespace).List(context.TODO(), selector)
+	pods, err := c.clientSet.CoreV1().Pods(namespace).List(c.requestContext(), selector)
 	if err == nil {
 		if len(pods.Items) == 0 {
 			c.podList = []v1.Pod{}
@@ -583,7 +597,7 @@ func (c *Connector) LoadReplicaSet(replicaNameList []string, namespace string) e
 	if len(replicaNameList) > 0 {
 		// single pod
 		for _, replicaName := range replicaNameList {
-			rs, err := c.clientSet.AppsV1().ReplicaSets(namespace).Get(context.TODO(), replicaName, metav1.GetOptions{})
+			rs, err := c.clientSet.AppsV1().ReplicaSets(namespace).Get(c.requestContext(), replicaName, metav1.GetOptions{})
 			if err == nil {
 				c.replicaList[namespace] = append(c.replicaList[namespace], *rs)
 			} else {
@@ -606,7 +620,7 @@ func (c *Connector) LoadReplicaSet(replicaNameList []string, namespace string) e
 		listNamespace = ""
 	}
 
-	rs, err := c.clientSet.AppsV1().ReplicaSets(listNamespace).List(context.TODO(), selector)
+	rs, err := c.clientSet.AppsV1().ReplicaSets(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve ReplicaSet list from server: %w", err)
 	}
@@ -659,7 +673,7 @@ func (c *Connector) LoadDeployment(deploymentNameList []string, namespace string
 	if len(deploymentNameList) > 0 {
 		// single pod
 		for _, name := range deploymentNameList {
-			d, err := c.clientSet.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+			d, err := c.clientSet.AppsV1().Deployments(namespace).Get(c.requestContext(), name, metav1.GetOptions{})
 			if err == nil {
 				c.deploymentList[namespace] = append(c.deploymentList[namespace], *d)
 			} else {
@@ -682,7 +696,7 @@ func (c *Connector) LoadDeployment(deploymentNameList []string, namespace string
 		listNamespace = ""
 	}
 
-	d, err := c.clientSet.AppsV1().Deployments(listNamespace).List(context.TODO(), selector)
+	d, err := c.clientSet.AppsV1().Deployments(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve Deployment list from server: %w", err)
 	}
@@ -735,7 +749,7 @@ func (c *Connector) LoadDaemonSet(daemonNameList []string, namespace string) err
 	if len(daemonNameList) > 0 {
 		// single pod
 		for _, name := range daemonNameList {
-			d, err := c.clientSet.AppsV1().DaemonSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+			d, err := c.clientSet.AppsV1().DaemonSets(namespace).Get(c.requestContext(), name, metav1.GetOptions{})
 			if err == nil {
 				c.daemonList[namespace] = append(c.daemonList[namespace], *d)
 			} else {
@@ -758,7 +772,7 @@ func (c *Connector) LoadDaemonSet(daemonNameList []string, namespace string) err
 		listNamespace = ""
 	}
 
-	d, err := c.clientSet.AppsV1().DaemonSets(listNamespace).List(context.TODO(), selector)
+	d, err := c.clientSet.AppsV1().DaemonSets(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve DaemonSet list from server: %w", err)
 	}
@@ -811,7 +825,7 @@ func (c *Connector) LoadStatefulSet(statefulNameList []string, namespace string)
 	if len(statefulNameList) > 0 {
 		// single pod
 		for _, replicaName := range statefulNameList {
-			s, err := c.clientSet.AppsV1().StatefulSets(namespace).Get(context.TODO(), replicaName, metav1.GetOptions{})
+			s, err := c.clientSet.AppsV1().StatefulSets(namespace).Get(c.requestContext(), replicaName, metav1.GetOptions{})
 			if err == nil {
 				c.statefulList[namespace] = append(c.statefulList[namespace], *s)
 			} else {
@@ -834,7 +848,7 @@ func (c *Connector) LoadStatefulSet(statefulNameList []string, namespace string)
 		listNamespace = ""
 	}
 
-	s, err := c.clientSet.AppsV1().StatefulSets(listNamespace).List(context.TODO(), selector)
+	s, err := c.clientSet.AppsV1().StatefulSets(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve StatefulSet list from server: %w", err)
 	}
@@ -887,7 +901,7 @@ func (c *Connector) LoadJob(jobNameList []string, namespace string) error {
 	if len(jobNameList) > 0 {
 		// single pod
 		for _, name := range jobNameList {
-			j, err := c.clientSet.BatchV1().Jobs(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+			j, err := c.clientSet.BatchV1().Jobs(namespace).Get(c.requestContext(), name, metav1.GetOptions{})
 			if err == nil {
 				c.jobList[namespace] = append(c.jobList[namespace], *j)
 			} else {
@@ -910,7 +924,7 @@ func (c *Connector) LoadJob(jobNameList []string, namespace string) error {
 		listNamespace = ""
 	}
 
-	j, err := c.clientSet.BatchV1().Jobs(listNamespace).List(context.TODO(), selector)
+	j, err := c.clientSet.BatchV1().Jobs(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve Job list from server: %w", err)
 	}
@@ -963,7 +977,7 @@ func (c *Connector) LoadCronJob(jobNameList []string, namespace string) error {
 	if len(jobNameList) > 0 {
 		// single pod
 		for _, name := range jobNameList {
-			j, err := c.clientSet.BatchV1().CronJobs(namespace).Get(context.TODO(), name, metav1.GetOptions{})
+			j, err := c.clientSet.BatchV1().CronJobs(namespace).Get(c.requestContext(), name, metav1.GetOptions{})
 			if err == nil {
 				c.cronJobList[namespace] = append(c.cronJobList[namespace], *j)
 			} else {
@@ -986,7 +1000,7 @@ func (c *Connector) LoadCronJob(jobNameList []string, namespace string) error {
 		listNamespace = ""
 	}
 
-	j, err := c.clientSet.BatchV1().CronJobs(listNamespace).List(context.TODO(), selector)
+	j, err := c.clientSet.BatchV1().CronJobs(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve CronJob list from server: %w", err)
 	}
@@ -1042,7 +1056,7 @@ func (c *Connector) ClearCache() {
 // GetAllPodsAllNamespaces returns all pods across all namespaces regardless of
 // the current namespace filter. Used to compute accurate node allocations.
 func (c *Connector) GetAllPodsAllNamespaces() ([]v1.Pod, error) {
-	pods, err := c.clientSet.CoreV1().Pods("").List(context.TODO(), metav1.ListOptions{})
+	pods, err := c.clientSet.CoreV1().Pods("").List(c.requestContext(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve pods for node allocation: %w", err)
 	}
@@ -1051,7 +1065,7 @@ func (c *Connector) GetAllPodsAllNamespaces() ([]v1.Pod, error) {
 
 // GetMetricNodes returns node metrics from the metrics-server.
 func (c *Connector) GetMetricNodes() ([]v1beta1.NodeMetrics, error) {
-	list, err := c.metricSet.MetricsV1beta1().NodeMetricses().List(context.TODO(), metav1.ListOptions{})
+	list, err := c.metricSet.MetricsV1beta1().NodeMetricses().List(c.requestContext(), metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve node metrics: %w", err)
 	}
