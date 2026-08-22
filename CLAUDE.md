@@ -12,10 +12,15 @@ make fmt       # Format code (go fmt)
 make vet       # Lint with go vet
 ```
 
-CI gates on every PR: build + `go test -race`, golangci-lint, govulncheck,
-goimports and markdownlint suggestions via reviewdog, and zizmor on the
-workflows themselves. The lint gate runs with `only-new-issues`, so it blocks
-findings the diff introduces, not the 144 pre-existing ones.
+CI gates on every push and PR: build + `go test -race`, golangci-lint,
+govulncheck, goimports and markdownlint suggestions via reviewdog, and zizmor on
+the workflows themselves. golangci-lint is at zero findings, so any new one
+blocks. Run `make lint` before pushing.
+
+`hugeParam` and `rangeValCopy` are the only checks disabled in
+`.golangci.yml`, because they fire on the `Looper` interface passing
+`BuilderInformation` (8976 bytes) by value per container. Re-enable them with
+that refactor, not before.
 
 Run a single test:
 ```bash
