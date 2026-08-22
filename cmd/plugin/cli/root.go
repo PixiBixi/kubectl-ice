@@ -1,13 +1,19 @@
 package cli
 
 import (
+	"context"
+	"flag"
 	"fmt"
+	"io"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 
 	"github.com/PixiBixi/kubectl-ice/pkg/plugin"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"k8s.io/klog/v2"
 )
 
 // auto updated version via gorelaser
@@ -47,12 +53,45 @@ func RootCmd() *cobra.Command {
 }
 
 func InitAndExecute() {
-	if err := RootCmd().Execute(); err != nil {
+	os.Exit(run())
+}
+
+// run is separate from InitAndExecute so the deferred stop actually runs: os.Exit
+// skips defers.
+func run() int {
+	// ExecuteContext rather than Execute so an interrupt cancels the request in
+	// flight instead of abandoning it server side. NotifyContext stops relaying
+	// after the first signal, so a second ctrl-c still kills the process.
+	// --request-timeout continues to bound each request on top of this.
+	// client-go logs "Unexpected error when reading response body: context
+	// canceled" through klog on a cancelled request, which is exactly what an
+	// interrupt causes. Our own errors are wrapped and returned, so nothing worth
+	// reading is lost by silencing it.
+	silenceKlog()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	if err := RootCmd().ExecuteContext(ctx); err != nil {
+		if ctx.Err() != nil {
+			return 130
+		}
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return 1
 	}
+
+	return 0
 }
 
 func initConfig() {
 	viper.AutomaticEnv()
+}
+
+// silenceKlog sends client-go's internal logging to nowhere. It is transport
+// level noise that a plugin user cannot act on.
+func silenceKlog() {
+	set := flag.NewFlagSet("klog", flag.ContinueOnError)
+	klog.InitFlags(set)
+	_ = set.Set("logtostderr", "false")
+	klog.SetOutput(io.Discard)
 }
