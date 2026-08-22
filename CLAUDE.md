@@ -17,10 +17,12 @@ govulncheck, goimports and markdownlint suggestions via reviewdog, and zizmor on
 the workflows themselves. golangci-lint is at zero findings, so any new one
 blocks. Run `make lint` before pushing.
 
-`hugeParam` and `rangeValCopy` are the only checks disabled in
-`.golangci.yml`, because they fire on the `Looper` interface passing
-`BuilderInformation` (8976 bytes) by value per container. Re-enable them with
-that refactor, not before.
+`hugeParam` and `rangeValCopy` run with raised thresholds, not disabled: the
+`Looper` interface passes `BuilderInformation` (1336 bytes) and `v1.Pod` (1168)
+by value per container on purpose. Passing them by pointer was measured at +6%
+time and +152% allocations, because taking the address for an interface method
+call moves them to the heap while the by-value copy is a stack memcpy. Do not
+"fix" that without re-measuring.
 
 Run a single test:
 ```bash
