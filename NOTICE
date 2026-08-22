@@ -1,0 +1,12 @@
+kubectl-ice
+Copyright 2026 PixiBixi
+
+This product is a derivative work of kubectl-ice, Copyright 2022 NimbleArchitect,
+licensed under the Apache License, Version 2.0. The original project is at
+https://github.com/NimbleArchitect/kubectl-ice and its licence terms are in the
+LICENSE file, which is unchanged.
+
+Files across pkg/plugin and cmd/plugin have been modified. Notable changes:
+watch mode, the node, conditions and completion commands, table sort and render
+performance work, json/yaml/csv quote escaping, and a move to the k8s.io v0.35
+client libraries.

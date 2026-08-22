@@ -49,11 +49,10 @@ All feedback and contributions are welcome, if you want to raise an issue or hel
 Full documentation can be found over at:
 
 
- > **PixiBixi maintained fork.** This is a maintained fork of
- > [NimbleArchitect/kubectl-ice](https://github.com/NimbleArchitect/kubectl-ice)
- > (Apache 2.0) adding watch mode, node/conditions/completion commands and
- > performance improvements. It is distributed through its own krew custom
- > index (this repo), not the official krew-index.
+ > **PixiBixi maintained.** Adds watch mode, node/conditions/completion
+ > commands and performance work. Distributed through its own krew custom index
+ > (this repo), not the official krew-index. Licensing and provenance are in
+ > [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
 # Installation
 ## Install using krew (custom index)
