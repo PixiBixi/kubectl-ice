@@ -61,23 +61,31 @@ func Completion(rootCmd *cobra.Command) *cobra.Command {
 	return cmd
 }
 
-func runZshCompletion(rootCmd *cobra.Command, install bool) error {
+func runZshCompletion(rootCmd *cobra.Command, install bool) (err error) {
 	if !install {
 		return rootCmd.GenZshCompletion(os.Stdout)
 	}
 
 	// Prefer the first writable dir in $fpath, fall back to ~/.zsh/completions.
 	dir := zshCompletionDir()
+	//nolint:gosec // completion scripts are not secret, a shared dir stays readable
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("creating completion dir %s: %w", dir, err)
 	}
 
 	dest := filepath.Join(dir, "_kubectl-ice")
+	//nolint:gosec // dest is the completion path the user asked us to install to
 	f, err := os.Create(dest)
 	if err != nil {
 		return fmt.Errorf("writing completion file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		// a failed close on a write path can mean a truncated completion file,
+		// which must not hide behind the success message below
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("writing completion file %s: %w", dest, cerr)
+		}
+	}()
 
 	if err := rootCmd.GenZshCompletion(f); err != nil {
 		return err
@@ -88,7 +96,7 @@ func runZshCompletion(rootCmd *cobra.Command, install bool) error {
 	return nil
 }
 
-func runBashCompletion(rootCmd *cobra.Command, install bool) error {
+func runBashCompletion(rootCmd *cobra.Command, install bool) (err error) {
 	if !install {
 		return rootCmd.GenBashCompletion(os.Stdout)
 	}
@@ -97,17 +105,26 @@ func runBashCompletion(rootCmd *cobra.Command, install bool) error {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		home, _ := os.UserHomeDir()
 		dir = filepath.Join(home, ".bash_completion.d")
+		//nolint:gosec // completion scripts are not secret, a shared dir stays readable
+		//nolint:gosec // completion scripts are not secret, a shared dir stays readable
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return fmt.Errorf("creating completion dir %s: %w", dir, err)
 		}
 	}
 
 	dest := filepath.Join(dir, "kubectl-ice")
+	//nolint:gosec // dest is the completion path the user asked us to install to
 	f, err := os.Create(dest)
 	if err != nil {
 		return fmt.Errorf("writing completion file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		// a failed close on a write path can mean a truncated completion file,
+		// which must not hide behind the success message below
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("writing completion file %s: %w", dest, cerr)
+		}
+	}()
 
 	if err := rootCmd.GenBashCompletion(f); err != nil {
 		return err
@@ -118,23 +135,31 @@ func runBashCompletion(rootCmd *cobra.Command, install bool) error {
 	return nil
 }
 
-func runFishCompletion(rootCmd *cobra.Command, install bool) error {
+func runFishCompletion(rootCmd *cobra.Command, install bool) (err error) {
 	if !install {
 		return rootCmd.GenFishCompletion(os.Stdout, true)
 	}
 
 	home, _ := os.UserHomeDir()
 	dir := filepath.Join(home, ".config", "fish", "completions")
+	//nolint:gosec // completion scripts are not secret, a shared dir stays readable
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("creating completion dir %s: %w", dir, err)
 	}
 
 	dest := filepath.Join(dir, "kubectl-ice.fish")
+	//nolint:gosec // dest is the completion path the user asked us to install to
 	f, err := os.Create(dest)
 	if err != nil {
 		return fmt.Errorf("writing completion file: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		// a failed close on a write path can mean a truncated completion file,
+		// which must not hide behind the success message below
+		if cerr := f.Close(); cerr != nil && err == nil {
+			err = fmt.Errorf("writing completion file %s: %w", dest, cerr)
+		}
+	}()
 
 	if err := rootCmd.GenFishCompletion(f, true); err != nil {
 		return err

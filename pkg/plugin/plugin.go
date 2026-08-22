@@ -364,8 +364,8 @@ func InitSubCommands(rootCmd *cobra.Command) {
 		Example: fmt.Sprintf(statusExample, rootCmd.CommandPath()),
 		Aliases: []string{"st"},
 		// SuggestFor: []string{""},
-		PreRun: func(cmd *cobra.Command, args []string) {
-			viper.BindPFlags(cmd.Flags())
+		PreRunE: func(cmd *cobra.Command, args []string) error {
+			return viper.BindPFlags(cmd.Flags())
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := Status(cmd, KubernetesConfigFlags, args); err != nil {
@@ -416,8 +416,7 @@ func InitSubCommands(rootCmd *cobra.Command) {
 		Use:   "version",
 		Short: versionsShort,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			Version(cmd, KubernetesConfigFlags, args)
-			return nil
+			return Version(cmd, KubernetesConfigFlags, args)
 		},
 	}
 	rootCmd.AddCommand(cmdVersion)

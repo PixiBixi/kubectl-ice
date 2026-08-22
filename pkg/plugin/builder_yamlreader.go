@@ -43,11 +43,12 @@ func (b *RowBuilder) loadYaml(filename string) ([]v1.Pod, error) {
 		scanner = bufio.NewScanner(file)
 	} else {
 		// load yaml file
+		//nolint:gosec // filename is the --filename value, opening it is the feature
 		file, err := os.Open(filename)
 		if err != nil {
 			return []v1.Pod{}, fmt.Errorf("failed to open %s: %w", filename, err)
 		}
-		defer file.Close()
+		defer func() { _ = file.Close() }() // read path, a close error is not actionable
 		scanner = bufio.NewScanner(file)
 	}
 

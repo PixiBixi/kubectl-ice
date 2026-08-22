@@ -31,7 +31,7 @@ func RootCmd() *cobra.Command {
 		SilenceUsage:  true,
 		Version:       version,
 		Run: func(cmd *cobra.Command, args []string) {
-			cmd.Help()
+			_ = cmd.Help()
 		},
 	}
 
