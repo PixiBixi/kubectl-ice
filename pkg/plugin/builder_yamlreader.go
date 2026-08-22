@@ -2,8 +2,12 @@ package plugin
 
 import (
 	"bufio"
+	"errors"
+	"fmt"
 	"log"
 	"os"
+	"sync"
+	"time"
 
 	a1 "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
@@ -16,7 +20,25 @@ func (b *RowBuilder) loadYaml(filename string) ([]v1.Pod, error) {
 	var content string
 	var scanner *bufio.Scanner
 
+	// noop unless we read stdin, see the goroutine below
+	gotFirstLine := func() {}
+
 	if b.StdinChanged {
+		// a pipe with no data blocks here forever, and a silent hang reads as a
+		// stuck api call. Say what we wait for, but only while we really wait:
+		// the timer is cancelled by the first line, not by the end of the parse.
+		firstLine := make(chan struct{})
+		gotFirstLine = sync.OnceFunc(func() { close(firstLine) })
+		defer gotFirstLine()
+
+		go func() {
+			select {
+			case <-firstLine:
+			case <-time.After(stdinWaitNotice):
+				fmt.Fprintln(os.Stderr, "waiting for yaml on stdin, press ctrl-c to cancel")
+			}
+		}()
+
 		// read yaml from stdin
 		file := bufio.NewReader(os.Stdin)
 		scanner = bufio.NewScanner(file)
@@ -31,13 +53,16 @@ func (b *RowBuilder) loadYaml(filename string) ([]v1.Pod, error) {
 	}
 
 	for scanner.Scan() {
+		gotFirstLine()
 		line := scanner.Text()
 		if line == "---" {
 			pod, err := b.convertFromYaml([]byte(content))
 			if err != nil {
 				return []v1.Pod{}, err
 			}
-			pods = append(pods, pod)
+			if hasPodData(pod) {
+				pods = append(pods, pod)
+			}
 			content = ""
 		} else {
 			content += line + "\n"
@@ -52,9 +77,27 @@ func (b *RowBuilder) loadYaml(filename string) ([]v1.Pod, error) {
 	if err != nil {
 		return []v1.Pod{}, err
 	}
-	pods = append(pods, pod)
+	if hasPodData(pod) {
+		pods = append(pods, pod)
+	}
+
+	if len(pods) == 0 {
+		return []v1.Pod{}, errors.New("no pod found in the yaml input, supported kinds are Pod, Deployment, ReplicaSet, StatefulSet, DaemonSet, Job and CronJob")
+	}
 
 	return pods, nil
+}
+
+// stdinWaitNotice is how long we read stdin before telling the user we are
+// waiting on them. Short enough to catch an accidental pipe, long enough that a
+// normal `kubectl get -o yaml | ice` never prints anything.
+const stdinWaitNotice = 2 * time.Second
+
+// hasPodData reports whether convertFromYaml actually recognised the document.
+// An unsupported kind yields a zero Pod, which used to be appended anyway and
+// rendered as an empty table with no hint that the input was not understood.
+func hasPodData(pod v1.Pod) bool {
+	return pod.Name != "" || len(pod.Spec.Containers) > 0 || len(pod.Spec.InitContainers) > 0
 }
 
 func (b *RowBuilder) convertFromYaml(input []byte) (v1.Pod, error) {
