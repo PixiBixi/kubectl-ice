@@ -11,8 +11,7 @@ var versionsShort = "Display container versions and mount points"
 
 var helpTemplate = `
 {{if or .Runnable .HasSubCommands}}{{.UsageString}}{{end}}
-More information, documentation and examples at: https://nimblearchitect.github.io/kubectl-ice/
- find this program useful? Please consider donating: https://nimblearchitect.github.io/kubectl-ice/donations/
+More information and examples at: https://github.com/PixiBixi/kubectl-ice
 
 `
 
@@ -22,18 +21,13 @@ func Version(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, args 
 
 version %s
 
-the latest version can be found at: 
-	https://nimblearchitect.github.io/kubectl-ice/downloads/
+the latest version can be found at:
+	https://github.com/PixiBixi/kubectl-ice/releases
 
-to view the documentation:
-	https://nimblearchitect.github.io/kubectl-ice
+to raise issues:
+	https://github.com/PixiBixi/kubectl-ice/issues
 
-or to raise issues: 
-   https://github.com/NimbleArchitect/kubectl-ice
-
-if you find this program useful please consider saying thanks I can be reached
- on twitter @nimblearchitect or you can buy me a coffee:
-	https://nimblearchitect.github.io/kubectl-ice/donations/
+this is a PixiBixi maintained fork of NimbleArchitect/kubectl-ice, Apache 2.0
 
 
 if your just after the version string use: kubectl-ice -v
