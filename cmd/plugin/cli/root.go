@@ -5,7 +5,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/NimbleArchitect/kubectl-ice/pkg/plugin"
+	"github.com/PixiBixi/kubectl-ice/pkg/plugin"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -17,10 +17,8 @@ var rootShort = "View pod information at the container level"
 
 var rootDescription = ` Ice lets you view configuration and settings of the containers that run inside pods.
 
-	Full documentation can be found at: https://nimblearchitect.github.io/kubectl-ice
-	
- Suggestions and improvements can be made by raising an issue here: 
-    https://github.com/NimbleArchitect/kubectl-ice
+	Suggestions and improvements can be made by raising an issue here:
+    https://github.com/PixiBixi/kubectl-ice/issues
 
 `
 

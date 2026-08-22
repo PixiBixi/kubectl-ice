@@ -1,8 +1,11 @@
 Local help can be found with:
+
 ```
 kubectl-ice -h
 ```
 
-Full usage documentation has been moved to:
+Per command help, including the flags each one accepts:
 
-[https://nimblearchitect.github.io/kubectl-ice](https://nimblearchitect.github.io/kubectl-ice)
+```
+kubectl-ice <command> -h
+```
