@@ -267,7 +267,7 @@ func getColourSetFromString(colours []string) ([][2]int, int, error) {
 	}
 
 	if len(colourArray) == 0 {
-		colourArray = append(colourArray, [2]int{-1, 0})
+		colourArray = append(colourArray, [2]int{colourNone, 0})
 	}
 	return colourArray, colourset, nil
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -172,38 +171,5 @@ func (b *RowBuilder) resetTable() {
 	b.Table = &Table{
 		ColourOutput:  b.Table.ColourOutput,
 		CustomColours: b.Table.CustomColours,
-	}
-}
-
-// WatchBuildLegacy is kept for backward compatibility with tests; it uses the old stderr approach.
-// It is not used in production code.
-func (b *RowBuilder) watchLegacy(loop Looper, renderFn func() error) error {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	if err := b.Build(loop); err != nil {
-		return err
-	}
-	if err := renderFn(); err != nil {
-		return err
-	}
-
-	for {
-		watcher, err := b.Connection.WatchPods(ctx)
-		if err != nil {
-			if ctx.Err() != nil {
-				return nil
-			}
-			fmt.Fprintf(os.Stderr, "\nwatch error: %v\n", err)
-			select {
-			case <-ctx.Done():
-				return nil
-			case <-time.After(5 * time.Second):
-			}
-			continue
-		}
-		_ = watcher
-		watcher.Stop()
-		return nil
 	}
 }

@@ -381,7 +381,7 @@ func (c *Connector) GetConfigMaps(configMapName string) (v1.ConfigMap, error) {
 func (c *Connector) GetConfigMapValue(configMap string, key string) string {
 	var val map[string]map[string]string
 
-	if len(configMap) <= 0 {
+	if len(configMap) == 0 {
 		return ""
 	}
 
@@ -588,8 +588,7 @@ func (c *Connector) LoadReplicaSet(replicaNameList []string, namespace string) e
 		for _, replicaName := range replicaNameList {
 			rs, err := c.clientSet.AppsV1().ReplicaSets(namespace).Get(context.TODO(), replicaName, metav1.GetOptions{})
 			if err == nil {
-				list := append(c.replicaList[namespace], *rs)
-				c.replicaList[namespace] = list
+				c.replicaList[namespace] = append(c.replicaList[namespace], *rs)
 			} else {
 				return fmt.Errorf("failed to retrieve ReplicaSet from server: %w", err)
 			}
@@ -654,8 +653,7 @@ func (c *Connector) LoadDeployment(deploymentNameList []string, namespace string
 		for _, name := range deploymentNameList {
 			d, err := c.clientSet.AppsV1().Deployments(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 			if err == nil {
-				list := append(c.deploymentList[namespace], *d)
-				c.deploymentList[namespace] = list
+				c.deploymentList[namespace] = append(c.deploymentList[namespace], *d)
 			} else {
 				return fmt.Errorf("failed to retrieve Deployment from server: %w", err)
 			}
@@ -721,8 +719,7 @@ func (c *Connector) LoadDaemonSet(daemonNameList []string, namespace string) err
 		for _, name := range daemonNameList {
 			d, err := c.clientSet.AppsV1().DaemonSets(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 			if err == nil {
-				list := append(c.daemonList[namespace], *d)
-				c.daemonList[namespace] = list
+				c.daemonList[namespace] = append(c.daemonList[namespace], *d)
 			} else {
 				return fmt.Errorf("failed to retrieve DaemonSet from server: %w", err)
 			}
@@ -788,8 +785,7 @@ func (c *Connector) LoadStatefulSet(statefulNameList []string, namespace string)
 		for _, replicaName := range statefulNameList {
 			s, err := c.clientSet.AppsV1().StatefulSets(namespace).Get(context.TODO(), replicaName, metav1.GetOptions{})
 			if err == nil {
-				list := append(c.statefulList[namespace], *s)
-				c.statefulList[namespace] = list
+				c.statefulList[namespace] = append(c.statefulList[namespace], *s)
 			} else {
 				return fmt.Errorf("failed to retrieve StatefulSet from server: %w", err)
 			}
@@ -855,8 +851,7 @@ func (c *Connector) LoadJob(jobNameList []string, namespace string) error {
 		for _, name := range jobNameList {
 			j, err := c.clientSet.BatchV1().Jobs(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 			if err == nil {
-				list := append(c.jobList[namespace], *j)
-				c.jobList[namespace] = list
+				c.jobList[namespace] = append(c.jobList[namespace], *j)
 			} else {
 				return fmt.Errorf("failed to retrieve Job from server: %w", err)
 			}
@@ -922,8 +917,7 @@ func (c *Connector) LoadCronJob(jobNameList []string, namespace string) error {
 		for _, name := range jobNameList {
 			j, err := c.clientSet.BatchV1().CronJobs(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 			if err == nil {
-				list := append(c.cronJobList[namespace], *j)
-				c.cronJobList[namespace] = list
+				c.cronJobList[namespace] = append(c.cronJobList[namespace], *j)
 			} else {
 				return fmt.Errorf("failed to retrieve CronJob from server: %w", err)
 			}

@@ -294,7 +294,7 @@ func (t *Table) Fprint(w io.Writer) {
 				switch t.ColourOutput {
 				case COLOUR_ERRORS:
 					// override if we should only show error colours
-					if cell.colour[0] != -1 {
+					if cell.colour[0] != colourNone {
 						cellcolour = cell.colour
 					} else {
 						cellcolour[0] = -1
@@ -327,7 +327,7 @@ func (t *Table) Fprint(w io.Writer) {
 			pad := strings.Repeat(" ", spaceCount)
 
 			// colour output has been set and the cell has data
-			if withColour && cellcolour[0] != -1 {
+			if withColour && cellcolour[0] != colourNone {
 				// so we add the colour codes and modifier
 				celltxt = fmt.Sprintf("\033[%d;%dm%s%s", cellcolour[1], cellcolour[0], origtxt, colourEnd)
 			}
@@ -448,7 +448,7 @@ func (t *Table) SprintList() string {
 
 // FprintCsv outputs the table to w as CSV
 func (t *Table) FprintCsv(w io.Writer) {
-	if len(t.data) <= 0 {
+	if len(t.data) == 0 {
 		return
 	}
 
@@ -562,14 +562,14 @@ func (t *Table) SortByNames(name ...string) error {
 	columnFound := make([]bool, len(name))
 	columnDescend := make([]bool, len(name))
 
-	if len(name) <= 0 {
+	if len(name) == 0 {
 		return nil
 	}
 
 	// scan and match all column names against headers
 	for i := range name {
 		rawName := strings.TrimSpace(name[i])
-		if len(rawName) <= 0 {
+		if len(rawName) == 0 {
 			continue
 		}
 
@@ -629,7 +629,7 @@ func strMatch(str string, pattern string) bool {
 
 	for i, char := range pattern {
 		j := i + 1
-		if char == []rune("*")[0] {
+		if char == '*' {
 			lookup[0][j] = lookup[0][j-1]
 		}
 	}
@@ -638,11 +638,12 @@ func strMatch(str string, pattern string) bool {
 		i := q + 1
 		for w, char := range pattern {
 			j := w + 1
-			if char == []rune("*")[0] {
+			switch {
+			case char == '*':
 				lookup[i][j] = lookup[i][j-1] || lookup[i-1][j]
-			} else if char == []rune("?")[0] || s == char {
+			case char == '?' || s == char:
 				lookup[i][j] = lookup[i-1][j-1]
-			} else {
+			default:
 				lookup[i][j] = false
 			}
 		}
@@ -653,7 +654,7 @@ func strMatch(str string, pattern string) bool {
 func NewCellEmpty() Cell {
 	return Cell{
 		typ:    -1,
-		colour: [2]int{-1, 0},
+		colour: [2]int{colourNone, 0},
 	}
 }
 
@@ -667,7 +668,7 @@ func NewCellText(text string) Cell {
 
 	return Cell{
 		text:   temp,
-		colour: [2]int{-1, 0},
+		colour: [2]int{colourNone, 0},
 	}
 }
 
@@ -684,7 +685,7 @@ func NewCellTextIndent(text string, indentLevel int) Cell {
 	return Cell{
 		text:   temp,
 		indent: indentLevel,
-		colour: [2]int{-1, 0},
+		colour: [2]int{colourNone, 0},
 	}
 }
 
@@ -694,7 +695,7 @@ func NewCellInt(text string, value int64) Cell {
 		text:   text,
 		number: value,
 		typ:    1,
-		colour: [2]int{-1, 0},
+		colour: [2]int{colourNone, 0},
 	}
 }
 
@@ -704,7 +705,7 @@ func NewCellFloat(text string, value float64) Cell {
 		text:   text,
 		float:  value,
 		typ:    2,
-		colour: [2]int{-1, 0},
+		colour: [2]int{colourNone, 0},
 	}
 }
 
@@ -889,7 +890,7 @@ func (t *Table) getFencesBoundarys(orderList []int, columnID int, rows [][]Cell,
 	// these can then be used to exclude everything in side of the 2 fences
 	if cellType == 1 {
 		iqrInt = q3Int - q1Int
-		pc := int64((15 * iqrInt) / 10)
+		pc := (15 * iqrInt) / 10
 		upperFenceInt := q3Int + pc
 		lowerFenceInt := pc - q1Int
 		return upperFenceInt, lowerFenceInt

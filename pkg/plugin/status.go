@@ -243,8 +243,7 @@ func (s *status) BuildBranch(info BuilderInformation, rows [][]Cell) ([]Cell, er
 	rowOut[2].typ = 1
 	rowOut[2].text = strconv.FormatInt(rowOut[2].number, 10)
 
-	switch info.TypeName {
-	case "Pod":
+	if info.TypeName == "Pod" {
 		rawAge := time.Since(info.Data.pod.CreationTimestamp.Time)
 		if info.Data.pod.DeletionTimestamp == nil {
 			rowOut[3].text = string(info.Data.pod.Status.Phase) // state
@@ -279,9 +278,9 @@ func (s *status) BuildContainerStatus(container v1.ContainerStatus, info Builder
 	log := logger{location: "Status:BuildContainerStatus"}
 	log.Debug("Start")
 
-	colourcode := [2]int{-1, 0}
-	readyColour := [2]int{-1, 0}
-	startColour := [2]int{-1, 0}
+	colourcode := [2]int{colourNone, 0}
+	var readyColour [2]int
+	startColour := [2]int{colourNone, 0}
 
 	if s.ShowPrevious {
 		state = container.LastTerminationState
@@ -383,13 +382,13 @@ func (s *status) BuildContainerStatus(container v1.ContainerStatus, info Builder
 // Removes the pod name and container name from the status message as its already in the output table
 func (s *status) trimStatusMessage(message string, podName string, containerName string) string {
 
-	if len(message) <= 0 {
+	if len(message) == 0 {
 		return ""
 	}
-	if len(podName) <= 0 {
+	if len(podName) == 0 {
 		return ""
 	}
-	if len(containerName) <= 0 {
+	if len(containerName) == 0 {
 		return ""
 	}
 

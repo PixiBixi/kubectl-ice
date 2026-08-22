@@ -133,8 +133,7 @@ func (s restarts) HideColumns(info BuilderInformation) []int {
 func (s restarts) BuildBranch(info BuilderInformation, rows [][]Cell) ([]Cell, error) {
 	rowOut := make([]Cell, 1)
 
-	switch info.TypeName {
-	case "Pod":
+	if info.TypeName == "Pod" {
 		for _, r := range rows {
 			rowOut[0].number += r[0].number // ready
 		}
