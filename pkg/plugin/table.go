@@ -820,87 +820,64 @@ func (t *Table) HideRows(rowID []int) {
 	}
 }
 
-// getFencesInt given the current order and a list of rows calculate the upper and lower boundy exclusion limit for the selected columnID
-func (t *Table) getFencesInt(orderList []int, columnID int, rows [][]Cell) (int64, int64) {
-	upper, lower := t.getFencesBoundarys(orderList, columnID, rows, 1)
-	return upper.(int64), lower.(int64)
-}
-
-// getFencesFloat given the current order and a list of rows calculate the upper and lower boundy exclusion limit for the selected columnID
-func (t *Table) getFencesFloat(orderList []int, columnID int, rows [][]Cell) (float64, float64) {
-	upper, lower := t.getFencesBoundarys(orderList, columnID, rows, 2)
-	return upper.(float64), lower.(float64)
-}
-
-// getFencesBoundarys the actual function to calculate the upper and lower boundy exclusion limit
-func (t *Table) getFencesBoundarys(orderList []int, columnID int, rows [][]Cell, cellType int) (any, any) {
-	// find middle of the list
-	var q1Int, q3Int, iqrInt int64
-	var q1Float, q3Float, iqrFloat float64
-
+// fenceQuartileRows returns the row numbers holding the first and third
+// quartile of orderList. When the middle falls between two rows both are
+// returned and the caller averages them, which is what the previous single
+// function did through a cellType switch.
+func fenceQuartileRows(orderList []int) (q1Rows, q3Rows []int) {
 	// find the middle point in the list so we can split the list into 3
 	listLen := len(orderList) + 1
 	pos2 := listLen / 2
 	pos1 := (pos2 / 2) - 1
 	pos3 := pos2 + (pos2 / 2) - 1
 
-	if listLen&1 == 1 { // even list length
+	if listLen&1 == 1 {
 		// the middle is held by 2 items, so we grab 2 points for the 1st third
 		// and 2 points for the 3rd third
-		rowPos1 := orderList[pos1]
-		rowPos2 := orderList[pos1+1]
-		rowPos3 := orderList[pos3]
-		rowPos4 := orderList[pos3+1]
-
-		// grab the values of all 4 points as we need to calculate, to get a single half
-		// way value for each third
-		t1Cell := rows[rowPos1][columnID]
-		t2Cell := rows[rowPos2][columnID]
-		t3Cell := rows[rowPos3][columnID]
-		t4Cell := rows[rowPos4][columnID]
-
-		// we support both floats and ints so need to calculate based on type
-		switch cellType {
-		case 1:
-			q1Int = (t1Cell.number + t2Cell.number) / 2
-			q3Int = (t3Cell.number + t4Cell.number) / 2
-		case 2:
-			q1Float = (t1Cell.float + t2Cell.float) / 2
-			q3Float = (t3Cell.float + t4Cell.float) / 2
-		}
-	} else { // odd list length
-		// odds are eaiser as we have a single middle point, but we still need to deal with floats and ints
-		rowPos1 := orderList[pos1]
-		rowPos3 := orderList[pos3]
-		t1Cell := rows[rowPos1][columnID]
-		t3Cell := rows[rowPos3][columnID]
-
-		switch cellType {
-		case 1:
-			q1Int = t1Cell.number
-			q3Int = t3Cell.number
-		case 2:
-			q1Float = t1Cell.float
-			q3Float = t3Cell.float
-		}
+		return []int{orderList[pos1], orderList[pos1+1]}, []int{orderList[pos3], orderList[pos3+1]}
 	}
 
-	// now we can work out the distance between the 1st and 3rd third of the list
-	// we calculate 1.5% of that difference and use to create a lower and upper fence
-	// these can then be used to exclude everything in side of the 2 fences
-	if cellType == 1 {
-		iqrInt = q3Int - q1Int
-		pc := (15 * iqrInt) / 10
-		upperFenceInt := q3Int + pc
-		lowerFenceInt := pc - q1Int
-		return upperFenceInt, lowerFenceInt
-	} else {
-		iqrFloat = q3Float - q1Float
-		pc := 1.5 * iqrFloat
-		upperFenceFloat := q3Float + pc
-		lowerFenceFloat := pc - q1Float
-		return upperFenceFloat, lowerFenceFloat
+	// a single middle point per third
+	return []int{orderList[pos1]}, []int{orderList[pos3]}
+}
+
+// getFencesInt given the current order and a list of rows calculate the upper and lower boundy exclusion limit for the selected columnID
+func (t *Table) getFencesInt(orderList []int, columnID int, rows [][]Cell) (int64, int64) {
+	q1Rows, q3Rows := fenceQuartileRows(orderList)
+
+	var q1, q3 int64
+	for _, row := range q1Rows {
+		q1 += rows[row][columnID].number
 	}
+	q1 /= int64(len(q1Rows))
+	for _, row := range q3Rows {
+		q3 += rows[row][columnID].number
+	}
+	q3 /= int64(len(q3Rows))
+
+	// 1.5 times the distance between the 1st and 3rd third gives the fences,
+	// everything outside them is excluded. Integer division truncates here, as
+	// it did before.
+	pc := (15 * (q3 - q1)) / 10
+	return q3 + pc, pc - q1
+}
+
+// getFencesFloat given the current order and a list of rows calculate the upper and lower boundy exclusion limit for the selected columnID
+func (t *Table) getFencesFloat(orderList []int, columnID int, rows [][]Cell) (float64, float64) {
+	q1Rows, q3Rows := fenceQuartileRows(orderList)
+
+	var q1, q3 float64
+	for _, row := range q1Rows {
+		q1 += rows[row][columnID].float
+	}
+	q1 /= float64(len(q1Rows))
+	for _, row := range q3Rows {
+		q3 += rows[row][columnID].float
+	}
+	q3 /= float64(len(q3Rows))
+
+	pc := 1.5 * (q3 - q1)
+	return q3 + pc, pc - q1
 }
 
 // AddPlaceHolderRow - Adds an updatable row to the table, returns an update id that can be used with UpdatePlaceHolderRow
