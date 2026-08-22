@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"encoding/json/jsontext"
 	"errors"
 	"fmt"
 	"io"
@@ -353,16 +354,17 @@ func (t *Table) Sprint() string {
 func (t *Table) FprintJson(w io.Writer) {
 	fmt.Fprintln(w, "{\"data\":[")
 	var lineBuf strings.Builder
+	var quoteBuf []byte
 	for rowNum := 0; rowNum < len(t.data); rowNum++ {
 		lineBuf.Reset()
 		lineBuf.WriteString("{")
 		row := t.data[rowNum]
 		for col := 0; col < t.headCount; col++ {
-			lineBuf.WriteString("\"")
-			lineBuf.WriteString(t.head[col].title)
-			lineBuf.WriteString("\": \"")
-			lineBuf.WriteString(row[col].text)
-			lineBuf.WriteString("\"")
+			quoteBuf = appendQuoted(quoteBuf, t.head[col].title)
+			lineBuf.Write(quoteBuf)
+			lineBuf.WriteString(": ")
+			quoteBuf = appendQuoted(quoteBuf, row[col].text)
+			lineBuf.Write(quoteBuf)
 			if col+1 < t.headCount {
 				lineBuf.WriteString(", ")
 			}
@@ -390,6 +392,7 @@ func (t *Table) SprintJson() string {
 func (t *Table) FprintYaml(w io.Writer) {
 	fmt.Fprintln(w, "data:")
 	var lineBuf strings.Builder
+	var quoteBuf []byte
 	for rowNum := 0; rowNum < len(t.data); rowNum++ {
 		lineBuf.Reset()
 		sep := "-"
@@ -398,9 +401,10 @@ func (t *Table) FprintYaml(w io.Writer) {
 			lineBuf.WriteString(sep)
 			lineBuf.WriteString(" ")
 			lineBuf.WriteString(t.head[col].title)
-			lineBuf.WriteString(": \"")
-			lineBuf.WriteString(row[col].text)
-			lineBuf.WriteString("\"\n")
+			lineBuf.WriteString(": ")
+			quoteBuf = appendQuoted(quoteBuf, row[col].text)
+			lineBuf.Write(quoteBuf)
+			lineBuf.WriteString("\n")
 			sep = " "
 		}
 		fmt.Fprint(w, lineBuf.String())
@@ -449,9 +453,7 @@ func (t *Table) FprintCsv(w io.Writer) {
 
 	var lineBuf strings.Builder
 	for col := 0; col < t.headCount; col++ {
-		lineBuf.WriteString("\"")
-		lineBuf.WriteString(t.head[col].title)
-		lineBuf.WriteString("\"")
+		writeCsvField(&lineBuf, t.head[col].title)
 		if col+1 < t.headCount {
 			lineBuf.WriteString(", ")
 		}
@@ -462,15 +464,40 @@ func (t *Table) FprintCsv(w io.Writer) {
 		lineBuf.Reset()
 		row := t.data[rowNum]
 		for col := 0; col < t.headCount; col++ {
-			lineBuf.WriteString("\"")
-			lineBuf.WriteString(row[col].text)
-			lineBuf.WriteString("\"")
+			writeCsvField(&lineBuf, row[col].text)
 			if col+1 < t.headCount {
 				lineBuf.WriteString(", ")
 			}
 		}
 		fmt.Fprintln(w, lineBuf.String())
 	}
+}
+
+// appendQuoted writes value into dst as a quoted json string literal, escaping
+// the quotes and control characters that used to be emitted raw and produced
+// invalid json. Reuses dst so the writers stay allocation free per cell.
+func appendQuoted(dst []byte, value string) []byte {
+	// invalid utf-8 is reported as an error but still written back as the
+	// replacement character, and these writers have no way to return it
+	out, _ := jsontext.AppendQuote(dst[:0], value)
+	return out
+}
+
+// writeCsvField writes value as an RFC 4180 quoted field, doubling any quote it
+// contains. An unescaped quote used to end the field early for every parser.
+func writeCsvField(dst *strings.Builder, value string) {
+	dst.WriteString("\"")
+	for {
+		idx := strings.IndexByte(value, '"')
+		if idx < 0 {
+			break
+		}
+		dst.WriteString(value[:idx])
+		dst.WriteString("\"\"")
+		value = value[idx+1:]
+	}
+	dst.WriteString(value)
+	dst.WriteString("\"")
 }
 
 // PrintCsv outputs the table to stdout as CSV
