@@ -1,0 +1,70 @@
+version: "2"
+
+run:
+  timeout: 5m
+
+linters:
+  default: standard # govet, staticcheck, errcheck, ineffassign, unused
+  enable:
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - durationcheck
+    - errorlint
+    - forcetypeassert
+    - gosec
+    - gocritic
+    - misspell
+    - modernize
+    - nilerr
+    - noctx
+    - perfsprint
+    - revive
+    - unconvert
+    - usestdlibvars
+  settings:
+    gocritic:
+      enabled-tags:
+        - performance
+      disabled-checks:
+        # Both fire on the Looper interface, which passes BuilderInformation
+        # (8976 bytes, it embeds seven k8s workload structs by value) and v1.Pod
+        # per container. Re-enable once Looper takes pointers: until then a new
+        # subcommand cannot satisfy the interface without tripping them.
+        - hugeParam
+        - rangeValCopy
+    errcheck:
+      # Output writers: a failed write to stdout or a closed pipe is not
+      # actionable in a table renderer.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+    gosec:
+      excludes:
+        - G104 # unhandled errors: fully overlaps errcheck, which is tuned above
+    revive:
+      rules:
+        # pkg/plugin is importable but is not a published api, the plugin is
+        # consumed as a binary.
+        - name: package-comments
+          disabled: true
+        - name: exported
+          disabled: true
+        - name: redefines-builtin-id # min/max/cap as local names is readable here
+          disabled: true
+        - name: unused-parameter # every Looper method shares a fixed signature
+          disabled: true
+  exclusions:
+    rules:
+      # gosec on tests is noisy (file perms, variable file inclusion) and not a
+      # runtime concern.
+      - path: _test\.go
+        linters:
+          - gosec
+
+issues:
+  # Show every finding. The defaults (max-issues-per-linter 50, max-same-issues 3)
+  # hide repeats, which makes a partial fix look complete.
+  max-issues-per-linter: 0
+  max-same-issues: 0

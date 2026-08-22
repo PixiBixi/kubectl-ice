@@ -5,11 +5,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Build & Development Commands
 
 ```bash
-make bin       # Build binary → bin/kubectl-ice
-make test      # Run tests with coverage (go test ./pkg/... ./cmd/...)
+make bin       # Build binary -> bin/kubectl-ice
+make test      # Run tests with the race detector and coverage
+make lint      # Run golangci-lint (config: .golangci.yml)
 make fmt       # Format code (go fmt)
 make vet       # Lint with go vet
 ```
+
+CI gates on every PR: build + `go test -race`, golangci-lint, govulncheck,
+goimports and markdownlint suggestions via reviewdog, and zizmor on the
+workflows themselves. The lint gate runs with `only-new-issues`, so it blocks
+findings the diff introduces, not the 144 pre-existing ones.
 
 Run a single test:
 ```bash

@@ -13,7 +13,7 @@ ice lists detailed information about the containers present inside a
 ![GitHub](https://img.shields.io/github/license/NimbleArchitect/kubectl-ice)
 ![Github All Releases](https://img.shields.io/github/downloads/NimbleArchitect/kubectl-ice/total.svg?color=blue)
 ![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/NimbleArchitect/kubectl-ice/release.yml)
-[![CodeQL](https://github.com/NimbleArchitect/kubectl-ice/actions/workflows/codeql-analysis.yml/badge.svg)](https://github.com/NimbleArchitect/kubectl-ice/actions/workflows/codeql-analysis.yml)
+[![CI](https://github.com/PixiBixi/kubectl-ice/actions/workflows/ci.yml/badge.svg)](https://github.com/PixiBixi/kubectl-ice/actions/workflows/ci.yml)
 
 ## Features:
 * Runs on Windows, Linux and MacOS
