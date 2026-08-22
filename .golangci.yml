@@ -37,6 +37,9 @@ linters:
           sizeThreshold: 1400
         rangeValCopy:
           sizeThreshold: 1200
+        # v1.Pod is 1168 and BuilderInformation 1336, both passed by value on
+        # purpose. Everything else should be well under, and the RowBuilder value
+        # receivers that used to hide under a higher threshold are now pointers.
     errcheck:
       # Output writers: a failed write to stdout or a closed pipe is not
       # actionable in a table renderer.

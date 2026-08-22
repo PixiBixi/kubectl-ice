@@ -54,6 +54,10 @@ type RowBuilder struct {
 	// cpu/memory where the underlying metrics change without pod events firing.
 	RefreshInterval time.Duration
 
+	// DebounceWindow is how long to wait for more pod events before rebuilding
+	// in watch mode. defaultDebounceWindow when zero.
+	DebounceWindow time.Duration
+
 	annotationLabel map[string]map[string]map[string]map[string]string
 	head            []string
 	filter          []matchFilter
@@ -129,7 +133,7 @@ func (b *RowBuilder) SetFlagsFrom(commonFlagList commonFlags) {
 
 }
 
-func (b RowBuilder) HasStdinChanged() (bool, error) {
+func (b *RowBuilder) HasStdinChanged() (bool, error) {
 	// check if our input has been redirected
 	fileinfo, err := os.Stdin.Stat()
 	if err != nil {
@@ -880,7 +884,7 @@ func (b *RowBuilder) getDefaultCells(info *BuilderInformation) []Cell {
 	}
 }
 
-func (b RowBuilder) canExcludeMatchString(filter matchFilter, val1 string, val2 string) bool {
+func (b *RowBuilder) canExcludeMatchString(filter matchFilter, val1 string, val2 string) bool {
 	// equals
 	if filter.compareEql {
 		if strMatch(val1, val2) {
@@ -912,7 +916,7 @@ func (b RowBuilder) canExcludeMatchString(filter matchFilter, val1 string, val2 
 	return true
 }
 
-func (b RowBuilder) canExcludeMatchInt(filter matchFilter, val1 int64, val2 int64) bool {
+func (b *RowBuilder) canExcludeMatchInt(filter matchFilter, val1 int64, val2 int64) bool {
 	// equals
 	if filter.compareEql {
 		if val1 == val2 {
@@ -944,7 +948,7 @@ func (b RowBuilder) canExcludeMatchInt(filter matchFilter, val1 int64, val2 int6
 	return true
 }
 
-func (b RowBuilder) canExcludeMatchFloat(filter matchFilter, val1 float64, val2 float64) bool {
+func (b *RowBuilder) canExcludeMatchFloat(filter matchFilter, val1 float64, val2 float64) bool {
 	// equals
 	if filter.compareEql {
 		if val1 == val2 {
