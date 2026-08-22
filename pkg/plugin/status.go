@@ -393,18 +393,19 @@ func (s *status) trimStatusMessage(message string, podName string, containerName
 		return ""
 	}
 
-	newMessage := ""
-	strArray := strings.Split(message, " ")
-	for _, v := range strArray {
+	var newMessage strings.Builder
+	strArray := strings.SplitSeq(message, " ")
+	for v := range strArray {
 		if "container="+containerName == v {
 			continue
 		}
 		if strings.HasPrefix(v, "pod="+podName+"_") {
 			continue
 		}
-		newMessage += " " + v
+		newMessage.WriteString(" ")
+		newMessage.WriteString(v)
 	}
-	return strings.TrimSpace(newMessage)
+	return strings.TrimSpace(newMessage.String())
 }
 
 func (s *status) BuildPodRow(pod v1.Pod, info BuilderInformation) ([][]Cell, error) {

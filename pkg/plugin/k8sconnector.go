@@ -458,7 +458,7 @@ func (c *Connector) SetNamespace(namespace string) {
 
 // convertToString expects a reflect value and the raw interface value and returns the value
 // as a string, it also handles pointers correctly
-func convertToString(field reflect.Value, value interface{}) string {
+func convertToString(field reflect.Value, value any) string {
 
 	switch value.(type) {
 	case *bool:
