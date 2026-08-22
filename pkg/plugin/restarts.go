@@ -43,69 +43,14 @@ var restartsExample = `  # List individual container restart count from pods
   %[1]s restarts -l "app in (web,mail)"`
 
 func Restarts(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, args []string) error {
-
-	log := logger{location: "Restarts"}
-	log.Debug("Start")
-
-	loopinfo := restarts{}
-	builder := RowBuilder{}
-	builder.LoopStatus = true
-	builder.ShowInitContainers = true
-	builder.PodName = args
-
-	connect := Connector{}
-	if err := connect.LoadConfig(cmd.Context(), kubeFlags); err != nil {
-		return err
-	}
-
-	commonFlagList, err := processCommonFlags(cmd)
-	if err != nil {
-		return err
-	}
-	connect.Flags = commonFlagList
-	builder.Connection = &connect
-	builder.SetFlagsFrom(commonFlagList)
-
-	table := Table{}
-	table.ColourOutput = commonFlagList.outputAsColour
-	table.CustomColours = commonFlagList.useTheseColours
-
-	builder.Table = &table
-	builder.ShowTreeView = commonFlagList.showTreeView
-
-	renderFn := func() (string, error) {
-		if commonFlagList.showOddities {
-			row2Remove, err := builder.Table.ListOutOfRange(4)
-			if err != nil {
-				return "", err
-			}
-			builder.Table.HideRows(row2Remove)
-		}
-		return sprintTableAs(*builder.Table, commonFlagList.outputAs), nil
-	}
-
-	if commonFlagList.watch {
-		return builder.WatchBuild(loopinfo, renderFn)
-	}
-
-	if err := builder.Build(loopinfo); err != nil {
-		return err
-	}
-
-	if err := table.SortByNames(commonFlagList.sortList...); err != nil {
-		return err
-	}
-
-	if commonFlagList.showOddities {
-		row2Remove, err := builder.Table.ListOutOfRange(4)
-		if err != nil {
-			return err
-		}
-		builder.Table.HideRows(row2Remove)
-	}
-	outputTableAs(table, commonFlagList.outputAs)
-	return nil
-
+	return runSubCommand(cmd, kubeFlags, args, subCommand{
+		loop:               &restarts{},
+		loopStatus:         true,
+		showInitContainers: true,
+		filterRows: func(run runContext) error {
+			return hideOutOfRange(run, 4)
+		},
+	})
 }
 
 type restarts struct{}

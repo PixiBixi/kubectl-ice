@@ -49,55 +49,11 @@ type commandLine struct {
 }
 
 func Commands(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, args []string) error {
-
-	log := logger{location: "Commands"}
-	log.Debug("Start")
-
-	loopinfo := commands{}
-	builder := RowBuilder{}
-	builder.LoopSpec = true
-	builder.ShowInitContainers = true
-	builder.PodName = args
-
-	connect := Connector{}
-	if err := connect.LoadConfig(cmd.Context(), kubeFlags); err != nil {
-		return err
-	}
-
-	commonFlagList, err := processCommonFlags(cmd)
-	if err != nil {
-		return err
-	}
-	connect.Flags = commonFlagList
-	builder.Connection = &connect
-	builder.SetFlagsFrom(commonFlagList)
-
-	table := Table{}
-	table.ColourOutput = commonFlagList.outputAsColour
-	table.CustomColours = commonFlagList.useTheseColours
-
-	builder.Table = &table
-	builder.ShowTreeView = commonFlagList.showTreeView
-
-	renderFn := func() (string, error) {
-		return sprintTableAs(*builder.Table, commonFlagList.outputAs), nil
-	}
-
-	if commonFlagList.watch {
-		return builder.WatchBuild(&loopinfo, renderFn)
-	}
-
-	if err := builder.Build(&loopinfo); err != nil {
-		return err
-	}
-
-	if err := table.SortByNames(commonFlagList.sortList...); err != nil {
-		return err
-	}
-
-	outputTableAs(table, commonFlagList.outputAs)
-	return nil
-
+	return runSubCommand(cmd, kubeFlags, args, subCommand{
+		loop:               &commands{},
+		loopSpec:           true,
+		showInitContainers: true,
+	})
 }
 
 type commands struct {
