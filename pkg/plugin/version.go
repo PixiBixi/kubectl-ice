@@ -27,8 +27,6 @@ the latest version can be found at:
 to raise issues:
 	https://github.com/PixiBixi/kubectl-ice/issues
 
-this is a PixiBixi maintained fork of NimbleArchitect/kubectl-ice, Apache 2.0
-
 
 if your just after the version string use: kubectl-ice -v
 
