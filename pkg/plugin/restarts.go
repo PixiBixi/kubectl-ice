@@ -88,7 +88,9 @@ func Restarts(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags, args
 		return builder.WatchBuild(loopinfo, renderFn)
 	}
 
-	builder.Build(loopinfo)
+	if err := builder.Build(loopinfo); err != nil {
+		return err
+	}
 
 	if err := table.SortByNames(commonFlagList.sortList...); err != nil {
 		return err
