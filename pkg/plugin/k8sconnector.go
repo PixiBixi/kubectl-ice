@@ -559,7 +559,9 @@ func (c *Connector) GetReplicaSet(replicaName string, namespace string) *a1.Repl
 	if _, ok := c.replicaList[namespace]; ok {
 		rs = c.replicaList[namespace]
 	} else {
-		c.LoadReplicaSet([]string{}, namespace)
+		// the cache check below decides: a failed load leaves it empty and the
+		// caller gets nil, which is the documented result for "not found"
+		_ = c.LoadReplicaSet([]string{}, namespace)
 		if _, ok := c.replicaList[namespace]; ok {
 			rs = c.replicaList[namespace]
 		}
@@ -625,7 +627,9 @@ func (c *Connector) GetDeployment(deploymentName string, namespace string) *a1.D
 	if _, ok := c.deploymentList[namespace]; ok {
 		de = c.deploymentList[namespace]
 	} else {
-		c.LoadDeployment([]string{}, namespace)
+		// the cache check below decides: a failed load leaves it empty and the
+		// caller gets nil, which is the documented result for "not found"
+		_ = c.LoadDeployment([]string{}, namespace)
 		if _, ok := c.deploymentList[namespace]; ok {
 			de = c.deploymentList[namespace]
 		}
@@ -691,7 +695,9 @@ func (c *Connector) GetDaemonSet(daemonName string, namespace string) *a1.Daemon
 	if _, ok := c.daemonList[namespace]; ok {
 		rs = c.daemonList[namespace]
 	} else {
-		c.LoadDaemonSet([]string{}, namespace)
+		// the cache check below decides: a failed load leaves it empty and the
+		// caller gets nil, which is the documented result for "not found"
+		_ = c.LoadDaemonSet([]string{}, namespace)
 		if _, ok := c.daemonList[namespace]; ok {
 			rs = c.daemonList[namespace]
 		}
@@ -757,7 +763,9 @@ func (c *Connector) GetStatefulSet(statefulsetName string, namespace string) *a1
 	if _, ok := c.statefulList[namespace]; ok {
 		ss = c.statefulList[namespace]
 	} else {
-		c.LoadStatefulSet([]string{}, namespace)
+		// the cache check below decides: a failed load leaves it empty and the
+		// caller gets nil, which is the documented result for "not found"
+		_ = c.LoadStatefulSet([]string{}, namespace)
 		if _, ok := c.statefulList[namespace]; ok {
 			ss = c.statefulList[namespace]
 		}
@@ -823,7 +831,9 @@ func (c *Connector) GetJob(jobName string, namespace string) *batchv1.Job {
 	if _, ok := c.jobList[namespace]; ok {
 		cj = c.jobList[namespace]
 	} else {
-		c.LoadJob([]string{}, namespace)
+		// the cache check below decides: a failed load leaves it empty and the
+		// caller gets nil, which is the documented result for "not found"
+		_ = c.LoadJob([]string{}, namespace)
 		if _, ok := c.jobList[namespace]; ok {
 			cj = c.jobList[namespace]
 		}
@@ -889,7 +899,9 @@ func (c *Connector) GetCronJob(jobName string, namespace string) *batchv1.CronJo
 	if _, ok := c.cronJobList[namespace]; ok {
 		cj = c.cronJobList[namespace]
 	} else {
-		c.LoadCronJob([]string{}, namespace)
+		// the cache check below decides: a failed load leaves it empty and the
+		// caller gets nil, which is the documented result for "not found"
+		_ = c.LoadCronJob([]string{}, namespace)
 		if _, ok := c.cronJobList[namespace]; ok {
 			cj = c.cronJobList[namespace]
 		}
