@@ -82,7 +82,7 @@ dont have krew? check it out here [https://github.com/GoogleContainerTools/krew]
 
 ## Install from Source
 
-clone and build the source using the following commands
+requires Go 1.27 or later, clone and build the source using the following commands
 ```shell
 git clone https://github.com/NimbleArchitect/kubectl-ice.git
 cd kubectl-ice
