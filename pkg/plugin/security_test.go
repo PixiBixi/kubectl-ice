@@ -6,8 +6,6 @@ import (
 	v1 "k8s.io/api/core/v1"
 )
 
-func ptr[T any](v T) *T { return &v }
-
 // cellTexts flattens a built row to its rendered text, so a test can assert on
 // what the user sees without reaching into the Cell internals.
 func cellTexts(cells []Cell) []string {
@@ -24,9 +22,9 @@ func cellTexts(cells []Cell) []string {
 func TestSecurityBuildRowContainerOnly(t *testing.T) {
 	sec := &security{}
 	csc := &v1.SecurityContext{
-		RunAsGroup:   ptr(int64(2000)),
-		RunAsUser:    ptr(int64(1000)),
-		RunAsNonRoot: ptr(true),
+		RunAsGroup:   new(int64(2000)),
+		RunAsUser:    new(int64(1000)),
+		RunAsNonRoot: new(true),
 	}
 
 	for _, test := range []struct {
