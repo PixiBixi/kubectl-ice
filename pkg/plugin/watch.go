@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
 )
@@ -37,7 +37,10 @@ func (m watchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.status = ""
 	case errMsg:
 		m.status = string(msg)
-	case tea.KeyMsg:
+	// KeyPressMsg, not the KeyMsg interface: v2 split key events into press and
+	// release and both satisfy KeyMsg, so matching the interface quits on the
+	// release too. Do NOT widen this back.
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
 			return m, tea.Quit
@@ -46,11 +49,11 @@ func (m watchModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m watchModel) View() string {
+func (m watchModel) View() tea.View {
 	if m.status != "" {
-		return m.content + "\n" + m.status
+		return tea.NewView(m.content + "\n" + m.status)
 	}
-	return m.content
+	return tea.NewView(m.content)
 }
 
 // WatchBuild performs an initial Build+renderFn, then watches for Kubernetes pod

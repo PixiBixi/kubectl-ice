@@ -6,7 +6,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/watch"
 )
@@ -96,16 +96,26 @@ func TestWatchModelUpdate(t *testing.T) {
 		},
 		{
 			name:       "q quits",
-			msg:        tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}},
+			msg:        tea.KeyPressMsg{Code: 'q', Text: "q"},
 			wantView:   "table",
 			wantQuit:   true,
 			startState: watchModel{content: "table"},
 		},
 		{
 			name:       "ctrl+c quits",
-			msg:        tea.KeyMsg{Type: tea.KeyCtrlC},
+			msg:        tea.KeyPressMsg{Code: 'c', Mod: tea.ModCtrl},
 			wantView:   "table",
 			wantQuit:   true,
+			startState: watchModel{content: "table"},
+		},
+		{
+			// v2 split key events into press and release, and both satisfy
+			// tea.KeyMsg. Matching the interface would quit on the release too,
+			// so releasing a key held from before the program started would end
+			// the session.
+			name:       "a key release does not quit",
+			msg:        tea.KeyReleaseMsg{Code: 'q', Text: "q"},
+			wantView:   "table",
 			startState: watchModel{content: "table"},
 		},
 	}
@@ -114,7 +124,7 @@ func TestWatchModelUpdate(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			model, cmd := test.startState.Update(test.msg)
 
-			if got := model.View(); got != test.wantView {
+			if got := model.View().Content; got != test.wantView {
 				t.Errorf("View() = %q, want %q", got, test.wantView)
 			}
 			if gotQuit := cmd != nil; gotQuit != test.wantQuit {
