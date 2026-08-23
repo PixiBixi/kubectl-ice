@@ -436,7 +436,7 @@ func (c *Connector) GetNamespace(allNamespaces bool) string {
 		return c.resolvedNamespace
 	}
 
-	// expensive: read kubeconfig from disk — done at most once per invocation
+	// expensive: read kubeconfig from disk, done at most once per invocation
 	namespace := ""
 	ctx := ""
 	clientCfg, _ := clientcmd.NewDefaultClientConfigLoadingRules().Load()

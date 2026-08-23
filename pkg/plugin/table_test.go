@@ -158,7 +158,7 @@ func TestTableSprint(t *testing.T) {
 }
 
 func TestTableSprintMultipleCalls(t *testing.T) {
-	// Sprint must be idempotent — calling it twice should return the same output
+	// Sprint must be idempotent: calling it twice should return the same output
 	tbl := Table{}
 	tbl.SetHeader("A", "B")
 	tbl.AddRow(NewCellText("x"), NewCellText("y"))
@@ -167,7 +167,7 @@ func TestTableSprintMultipleCalls(t *testing.T) {
 	second := tbl.Sprint()
 
 	if first != second {
-		t.Error("Sprint() not idempotent — consecutive calls returned different output")
+		t.Error("Sprint() not idempotent: consecutive calls returned different output")
 	}
 }
 

@@ -67,7 +67,7 @@ func TestSetFilterInvalidOperator(t *testing.T) {
 	}
 }
 
-// matchShouldExclude — int filter
+// matchShouldExclude: int filter
 func TestMatchShouldExcludeInt(t *testing.T) {
 	b, err := makeBuilderWithFilter(
 		[]string{"VAL"},
@@ -87,7 +87,7 @@ func TestMatchShouldExcludeInt(t *testing.T) {
 	}
 }
 
-// matchShouldExclude — string filter
+// matchShouldExclude: string filter
 func TestMatchShouldExcludeString(t *testing.T) {
 	b, err := makeBuilderWithFilter(
 		[]string{"STATUS"},
@@ -107,7 +107,7 @@ func TestMatchShouldExcludeString(t *testing.T) {
 	}
 }
 
-// matchShouldExclude — float filter
+// matchShouldExclude: float filter
 func TestMatchShouldExcludeFloat(t *testing.T) {
 	b, err := makeBuilderWithFilter(
 		[]string{"PCT"},
@@ -127,7 +127,7 @@ func TestMatchShouldExcludeFloat(t *testing.T) {
 	}
 }
 
-// matchShouldExclude — no filter set: never exclude
+// matchShouldExclude: no filter set: never exclude
 func TestMatchShouldExcludeNoFilter(t *testing.T) {
 	b := &RowBuilder{}
 	if b.matchShouldExclude([]Cell{NewCellText("anything")}) {

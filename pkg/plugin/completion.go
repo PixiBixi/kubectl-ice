@@ -170,7 +170,7 @@ func runFishCompletion(rootCmd *cobra.Command, install bool) (err error) {
 }
 
 // zshCompletionDir returns ~/.zsh/completions, creating it if needed.
-// A common convention for user-local zsh completions — add to fpath in ~/.zshrc:
+// A common convention for user-local zsh completions: add to fpath in ~/.zshrc:
 // fpath=(~/.zsh/completions $fpath)
 func zshCompletionDir() string {
 	home, _ := os.UserHomeDir()
