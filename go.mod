@@ -3,7 +3,7 @@ module github.com/PixiBixi/kubectl-ice
 go 1.27.0
 
 require (
-	github.com/charmbracelet/bubbletea v1.3.10
+	github.com/charmbracelet/bubbletea/v2 v2.0.8
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.15.0
 	k8s.io/api v0.36.3
