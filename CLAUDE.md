@@ -41,8 +41,8 @@ make bin && cp bin/kubectl-ice ~/.krew/bin/  # or anywhere on PATH
 ### Entry Point & Command Registration
 
 - `cmd/plugin/main.go` → `cli.InitAndExecute()`
-- `cmd/plugin/cli/root.go` — Cobra root command setup
-- `pkg/plugin/plugin.go:InitSubCommands()` — registers all subcommands
+- `cmd/plugin/cli/root.go` - Cobra root command setup
+- `pkg/plugin/plugin.go:InitSubCommands()` - registers all subcommands
 
 ### Core Abstraction: `Looper` Interface
 
@@ -62,18 +62,18 @@ type Looper interface {
 
 ### Data Flow
 
-1. **Command handler** (e.g., `Status()` in `pkg/plugin/status.go`) — creates a `RowBuilder`, sets flags
-2. **`RowBuilder`** (`pkg/plugin/builder.go`) — connects to Kubernetes API, iterates pods/containers, calls `Looper` methods
-3. **`Table`** (`pkg/plugin/table.go`) — holds `Cell` rows, handles sorting/filtering/coloring, renders to stdout
+1. **Command handler** (e.g., `Status()` in `pkg/plugin/status.go`) - creates a `RowBuilder`, sets flags
+2. **`RowBuilder`** (`pkg/plugin/builder.go`) - connects to Kubernetes API, iterates pods/containers, calls `Looper` methods
+3. **`Table`** (`pkg/plugin/table.go`) - holds `Cell` rows, handles sorting/filtering/coloring, renders to stdout
 
 ### Watch Mode (`--watch`/`-w`)
 
 All subcommands support `--watch`/`-w` to re-render the table live on Kubernetes pod events (event-driven via `client-go` Watch API, no polling).
 
 **Key files:**
-- `pkg/plugin/watch.go` — `WatchBuild()` method on `RowBuilder`, `resetTable()`, watch loop with reconnect logic
-- `pkg/plugin/k8sconnector.go` — `WatchPods(ctx)` and `ClearPodCache()`
-- `pkg/plugin/builder.go` — `PreBuildFn func() error` field (used by `resources.go` to re-fetch metrics before each render)
+- `pkg/plugin/watch.go` - `WatchBuild()` method on `RowBuilder`, `resetTable()`, watch loop with reconnect logic
+- `pkg/plugin/k8sconnector.go` - `WatchPods(ctx)` and `ClearPodCache()`
+- `pkg/plugin/builder.go` - `PreBuildFn func() error` field (used by `resources.go` to re-fetch metrics before each render)
 
 **Pattern in each command function:**
 ```go
@@ -96,7 +96,7 @@ On each pod event: pod cache is cleared → table reset → `Build()` re-fetches
 ### Standalone Commands (no RowBuilder/Looper)
 
 Some commands operate on non-pod resources and build the `Table` directly:
-- `pkg/plugin/node.go` — iterates nodes, computes pod allocations via `GetAllPodsAllNamespaces()`
+- `pkg/plugin/node.go` - iterates nodes, computes pod allocations via `GetAllPodsAllNamespaces()`
 
 ### Pod-level Commands (DontListContainers)
 
@@ -104,7 +104,7 @@ Commands that emit multiple rows per pod (not per container) set `builder.DontLi
 
 ### Adding a New Command
 
-1. Create `pkg/plugin/<command>.go` — define a struct implementing `Looper`
+1. Create `pkg/plugin/<command>.go` - define a struct implementing `Looper`
 2. Register the command in `pkg/plugin/plugin.go:InitSubCommands()`
 3. Follow the pattern from an existing simple command (e.g., `pkg/plugin/image.go`)
 
@@ -133,12 +133,12 @@ For visually noisy multi-column commands (e.g. `node`), force `COLOUR_ERRORS` mo
 
 ### Testing Gotchas
 
-- Import alias conflict: `resource` is already used in `resources.go` — use `apiresource` alias in test files:
+- Import alias conflict: `resource` is already used in `resources.go` - use `apiresource` alias in test files:
   ```go
   apiresource "k8s.io/apimachinery/pkg/api/resource"
   ```
 - Test files: `node_test.go`, `builder_test.go`, `k8sconnector_test.go`, `table_test.go`, `utils_test.go`
-- All tests are in `package plugin` (white-box) — internal fields accessible directly
+- All tests are in `package plugin` (white-box) - internal fields accessible directly
 
 ### Common Flags
 
