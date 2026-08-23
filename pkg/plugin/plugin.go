@@ -465,7 +465,7 @@ func addCommonFlags(cmdObj *cobra.Command) {
 	cmdObj.Flags().StringP("annotation", "", "", `Show the selected annotation as a column`)
 	cmdObj.Flags().StringP("filename", "f", "", `read pod information from this yaml file instead`)
 	cmdObj.Flags().StringP("columns", "", "", `list of column names to show in the table output, all other columns are hidden`)
-	cmdObj.Flags().StringP("color", "", "", `Add some much needed colour to the table output. string can be one of: columns, custom, errors, mix and none (overrides env variable ICE_COLOUR)`)
+	cmdObj.Flags().StringP("color", "", "", `Add some much needed colour to the table output. string can be one of: columns, custom, errors, mix and none (overrides env variable ICE_COLOR, or ICE_COLOUR)`)
 	cmdObj.Flags().BoolP("watch", "w", false, "Watch for pod changes and reprint the table on each event")
 }
 
@@ -630,8 +630,13 @@ func processCommonFlags(cmd *cobra.Command) (commonFlags, error) {
 		}
 	}
 
-	// check and set coluring type to use, we also check for both spellings of colour
+	// ICE_COLOR is canonical, matching the --color flag. ICE_COLOUR is accepted
+	// because upstream kubectl-ice only ever advertised that spelling, so users
+	// arriving from it carry it in their shell profile. The flag beats both.
 	colourOut := os.Getenv("ICE_COLOR")
+	if len(colourOut) == 0 {
+		colourOut = os.Getenv("ICE_COLOUR")
+	}
 
 	if cmd.Flag("color") != nil {
 		if len(cmd.Flag("color").Value.String()) > 0 {
