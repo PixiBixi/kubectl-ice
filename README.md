@@ -130,7 +130,7 @@ ice also supports all the standard kubectl flags in addition to:
 Flags:
   -A, --all-namespaces                 List containers from pods in all namespaces
       --annotation string              Show the selected annotation as a column
-      --color string                   Add some much needed colour to the table output. string can be one of: columns, custom, errors, mix and none (overrides environment variable ICE_COLOR)
+      --color string                   Add some much needed colour to the table output. string can be one of: columns, custom, errors, mix and none (overrides env variable ICE_COLOR, or ICE_COLOUR)
       --columns string                 List of column names to show in the table output, all other columns are hidden
   -c, --container string               Container name. If set shows only the named containers
       --context string                 The name of the kubeconfig context to use

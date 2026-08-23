@@ -195,8 +195,9 @@ is rejected.
 
 ### Colour
 `--color columns|mix|errors|custom|none`, or the **`ICE_COLOR`** environment
-variable. Note the discrepancy: the flag help text and the README both say
-`ICE_COLOUR`, but [`plugin.go`](../pkg/plugin/plugin.go) reads `ICE_COLOR`.
+variable. `ICE_COLOUR` is accepted as an alias, because upstream kubectl-ice only
+ever documented that spelling: the flag beats both, and `ICE_COLOR` wins when
+both are set.
 
 - `columns` gives each column a colour off a 14-entry wheel, for scanning wide
   tables sideways.
