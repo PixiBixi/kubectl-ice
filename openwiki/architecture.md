@@ -270,6 +270,14 @@ control to a [Bubble Tea](https://github.com/charmbracelet/bubbletea) program
 that redraws in place; a goroutine feeds it `contentMsg` on each rebuild and
 `errMsg` for non-fatal problems, shown on a status line under the table.
 
+Bubble Tea v2 lives at the module path `charm.land/bubbletea/v2`, not
+`github.com/charmbracelet/bubbletea/v2`, which is why the bump was done by hand
+and Renovate now tracks the new path. Two v2 differences bind the model:
+`View` returns a `tea.View` built with `tea.NewView`, and key events split into
+press and release, both satisfying `tea.KeyMsg`. `Update` therefore matches
+`tea.KeyPressMsg`; widening it back to `tea.KeyMsg` makes `q` quit on the key
+release too, and `watch_test.go` pins that.
+
 The loop:
 
 1. `Connection.WatchPods(ctx)` opens a pod watch, scoped to the same namespace

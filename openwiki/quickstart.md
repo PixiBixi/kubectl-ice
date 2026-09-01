@@ -10,7 +10,7 @@ first-class rows, not a blind spot.
 - **Language / runtime:** Go 1.27, compiled to a static `kubectl-ice` binary.
 - **Key deps:** `k8s.io/client-go` + `k8s.io/cli-runtime` (cluster access and the
   standard kubectl flags), `k8s.io/metrics` (cpu/memory usage),
-  `spf13/cobra` (commands), `charmbracelet/bubbletea` (watch-mode redraw).
+  `spf13/cobra` (commands), `charm.land/bubbletea/v2` (watch-mode redraw).
 - **Read-only:** every command lists or gets; nothing mutates the cluster.
 - **Provenance:** PixiBixi fork of
   [NimbleArchitect/kubectl-ice](https://github.com/NimbleArchitect/kubectl-ice),
@@ -263,6 +263,15 @@ findings**, so any new one blocks. Separate workflows add `govulncheck`,
 goimports and markdownlint suggestions through reviewdog, and `zizmor` on the
 workflows themselves. Run `make lint` before pushing.
 
+Three more gates run on pull requests:
+[`codeql.yml`](../.github/workflows/codeql.yml) (also on push to `main`, plus a
+weekly cron so a query published after the last push still gets to run),
+[`dependency-review.yml`](../.github/workflows/dependency-review.yml) on the
+dependency diff, and
+[`validate-pr-title.yml`](../.github/workflows/validate-pr-title.yml), which
+holds the PR title to Conventional Commits, the same vocabulary `svu` reads to
+decide the next version.
+
 Tests live beside the code in `package plugin` (white-box), and use client-go's
 fake clientset. See the [Testing section](architecture.md#testing) for the
 helpers and the gotchas.
@@ -289,15 +298,28 @@ goreleaser ([`.goreleaser.yml`](../.goreleaser.yml)) builds linux/darwin on
 amd64/arm64, injects the version through
 `-X .../cmd/plugin/cli.version`, and pushes the regenerated `ice.yaml` to
 [PixiBixi/krew-index](https://github.com/PixiBixi/krew-index) with the
-`KREW_INDEX_TOKEN` PAT. Every release also gets a **build-provenance
-attestation** over the archives and `checksums.txt`, signed keylessly with the
-job's `id-token`. A signature says who published; provenance says how the
-artifact was built. Verify a download with:
+`KREW_INDEX_TOKEN` PAT. It also emits an **SBOM per archive** (goreleaser
+shells out to `syft`, which the workflow installs first: a missing binary fails
+the release only after the archives are built) and a **keyless cosign signature
+over `checksums.txt`**, which covers every archive at once since it holds their
+SHA256. cosign v3 writes a single `.sigstore.json` bundle rather than the old
+`.sig` plus `.pem` pair.
+
+On top of that, every release gets a **build-provenance attestation** over the
+archives, `checksums.txt` and the SBOMs, signed keylessly with the job's
+`id-token`. A signature says who published; provenance says how the artifact was
+built. Verify a download with:
 
 ```bash
 gh attestation verify kubectl-ice_<version>_Darwin_arm64.tar.gz \
   --repo PixiBixi/kubectl-ice
+cosign verify-blob checksums.txt --bundle checksums.txt.sigstore.json \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  --certificate-identity-regexp '^https://github.com/PixiBixi/kubectl-ice/'
 ```
+
+Keyless means there is no private key to store or rotate: the identity comes from
+the GitHub OIDC token and lands in the Sigstore transparency log.
 
 Renovate ([`renovate.json`](../renovate.json)) drives the version bumps, and
 `forkProcessing` is on because Renovate skips forks by default. Minor Go-module
