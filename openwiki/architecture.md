@@ -331,13 +331,14 @@ and the utilisation percentages) that are the point of the command.
 
 Each of these is a measurement, not a preference. Re-measure before reverting.
 
-- **`hugeParam` and `rangeValCopy` are enabled with raised thresholds** (1400 and
-  1200 in [`.golangci.yml`](../.golangci.yml)), not disabled. The `Looper`
-  interface passes `BuilderInformation` (1336 bytes) and `v1.Pod` (1168) **by
-  value per container, on purpose**. Pointers were measured at +6% time and +152%
-  allocations: taking the address for an interface method call moves them to the
-  heap, while the by-value copy is a stack memcpy. The thresholds sit just above
-  those two, so anything larger is still caught.
+- **`hugeParam` and `rangeValCopy` are enabled with raised thresholds** (1450 and
+  1250 in [`.golangci.yml`](../.golangci.yml)), not disabled. The `Looper`
+  interface passes `BuilderInformation` (1408 bytes as of `k8s.io/api` v0.37) and
+  `v1.Pod` (1240) **by value per container, on purpose**. Pointers were measured
+  at +6% time and +152% allocations: taking the address for an interface method
+  call moves them to the heap, while the by-value copy is a stack memcpy. The
+  thresholds sit just above those two, so anything larger is still caught, which
+  means a `k8s.io/api` bump that grows `v1.Pod` needs them raised again.
 - **`Table.sort` must stay stable**, and float comparison must stay explicit (see
   Sorting above).
 - **`strMatch` stays the two-pointer scan**, not a DP table.
