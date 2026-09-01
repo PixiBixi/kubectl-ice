@@ -27,19 +27,17 @@ linters:
       enabled-tags:
         - performance
       settings:
-        # The Looper interface passes BuilderInformation (1336 bytes) and v1.Pod
-        # (1168) by value per container, deliberately. Passing them by pointer
-        # was measured at +6% time and +152% allocations: taking the address for
-        # an interface method call moves them to the heap, while the by-value
-        # copy is a stack memcpy. Thresholds sit just above those two so the
-        # checks still catch anything larger.
+        # The Looper interface passes BuilderInformation (1408 bytes as of
+        # k8s.io/api v0.37) and v1.Pod (1240) by value per container,
+        # deliberately. Passing them by pointer was measured at +6% time and
+        # +152% allocations: taking the address for an interface method call
+        # moves them to the heap, while the by-value copy is a stack memcpy.
+        # Thresholds sit just above those two so the checks still catch anything
+        # larger, so a k8s.io/api bump that adds Pod fields needs them raised.
         hugeParam:
-          sizeThreshold: 1400
+          sizeThreshold: 1450
         rangeValCopy:
-          sizeThreshold: 1200
-        # v1.Pod is 1168 and BuilderInformation 1336, both passed by value on
-        # purpose. Everything else should be well under, and the RowBuilder value
-        # receivers that used to hide under a higher threshold are now pointers.
+          sizeThreshold: 1250
     errcheck:
       # Output writers: a failed write to stdout or a closed pipe is not
       # actionable in a table renderer.

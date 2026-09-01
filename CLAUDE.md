@@ -29,11 +29,13 @@ the workflows themselves. golangci-lint is at zero findings, so any new one
 blocks. Run `make lint` before pushing.
 
 `hugeParam` and `rangeValCopy` run with raised thresholds, not disabled: the
-`Looper` interface passes `BuilderInformation` (1336 bytes) and `v1.Pod` (1168)
-by value per container on purpose. Passing them by pointer was measured at +6%
-time and +152% allocations, because taking the address for an interface method
-call moves them to the heap while the by-value copy is a stack memcpy. Do not
-"fix" that without re-measuring.
+`Looper` interface passes `BuilderInformation` (1408 bytes as of `k8s.io/api`
+v0.37) and `v1.Pod` (1240) by value per container on purpose. Passing them by
+pointer was measured at +6% time and +152% allocations, because taking the
+address for an interface method call moves them to the heap while the by-value
+copy is a stack memcpy. Do not "fix" that without re-measuring. Both structs
+grow when `k8s.io/api` adds Pod fields, so a deps bump can need the thresholds
+raised.
 
 Run a single test:
 ```bash
