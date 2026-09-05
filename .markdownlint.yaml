@@ -1,0 +1,7 @@
+# MD013 at its default 80 columns would force line breaks inside the shell
+# snippets in SECURITY.md and README.md, which readers copy and paste, and
+# inside the table rows in openwiki/ - a wrapped row is not a row any more.
+# Neither can be reflowed, so neither is checked. Prose still wraps.
+MD013:
+  code_blocks: false
+  tables: false
