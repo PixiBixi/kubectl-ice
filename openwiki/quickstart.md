@@ -260,8 +260,9 @@ CI gates every push and PR to `main`: [`ci.yml`](../.github/workflows/ci.yml)
 runs `go mod verify`, build and `go test -race`;
 [`lint.yml`](../.github/workflows/lint.yml) runs golangci-lint at **zero
 findings**, so any new one blocks. Separate workflows add `govulncheck`,
-goimports and markdownlint suggestions through reviewdog, and `zizmor` on the
-workflows themselves. Run `make lint` before pushing.
+goimports and markdownlint suggestions through reviewdog (rules in
+[`.markdownlint.yaml`](../.markdownlint.yaml)), and `zizmor` on the workflows
+themselves. Run `make lint` before pushing.
 
 Three more gates run on pull requests:
 [`codeql.yml`](../.github/workflows/codeql.yml) (also on push to `main`, plus a
@@ -271,6 +272,21 @@ dependency diff, and
 [`validate-pr-title.yml`](../.github/workflows/validate-pr-title.yml), which
 holds the PR title to Conventional Commits, the same vocabulary `svu` reads to
 decide the next version.
+
+Two things run outside the push/PR path.
+[`scorecard.yml`](../.github/workflows/scorecard.yml) runs the OSSF Scorecard
+weekly, uploads its SARIF to code scanning and publishes the result to the
+public OpenSSF API, so the supply-chain score is graded even in a week with no
+commit. And [`.github/CODEOWNERS`](../.github/CODEOWNERS) makes GitHub request a
+review from the maintainer on every PR he did not open; the matching branch
+protection toggle stays off on purpose, so it is a notification and not a gate.
+
+Every job starts with `step-security/harden-runner` in `egress-policy: audit`:
+it records the network destinations the runner reaches instead of blocking them,
+which is what lets a `block` policy be written later from real data rather than
+from guesses. Workflow permissions follow the same shape: `permissions: {}` at
+the top of the file, then the one scope the job needs granted on the job itself.
+[`SECURITY.md`](../SECURITY.md) covers private vulnerability reporting.
 
 Tests live beside the code in `package plugin` (white-box), and use client-go's
 fake clientset. See the [Testing section](architecture.md#testing) for the
@@ -308,7 +324,14 @@ SHA256. cosign v3 writes a single `.sigstore.json` bundle rather than the old
 On top of that, every release gets a **build-provenance attestation** over the
 archives, `checksums.txt` and the SBOMs, signed keylessly with the job's
 `id-token`. A signature says who published; provenance says how the artifact was
-built. Verify a download with:
+built.
+
+A second job, `verify`, then downloads the published release and re-runs the
+checks a user would run: the checksums, the cosign signature and
+`gh attestation verify` on every archive. It runs against the real release
+assets rather than the build workspace, so a release that publishes something
+unverifiable fails loudly instead of waiting for someone to notice on install.
+Verify a download yourself with:
 
 ```bash
 gh attestation verify kubectl-ice_<version>_Darwin_arm64.tar.gz \
