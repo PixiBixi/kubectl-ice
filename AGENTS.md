@@ -59,7 +59,7 @@ make bin && cp bin/kubectl-ice ~/.krew/bin/  # or anywhere on PATH
 
 ### Core Abstraction: `Looper` Interface
 
-Every subcommand implements the `Looper` interface (`pkg/plugin/builder.go:12`):
+Every subcommand implements the `Looper` interface (`pkg/plugin/builder.go:13`):
 
 ```go
 type Looper interface {
@@ -75,9 +75,10 @@ type Looper interface {
 
 ### Data Flow
 
-1. **Command handler** (e.g., `Status()` in `pkg/plugin/status.go`) - creates a `RowBuilder`, sets flags
-2. **`RowBuilder`** (`pkg/plugin/builder.go`) - connects to Kubernetes API, iterates pods/containers, calls `Looper` methods
-3. **`Table`** (`pkg/plugin/table.go`) - holds `Cell` rows, handles sorting/filtering/coloring, renders to stdout
+1. **Command handler** (e.g., `Status()` in `pkg/plugin/status.go`) - builds a `Looper` and a `subCommand{loop, configure, filterRows, ...}` literal, then calls `runSubCommand()`
+2. **`runSubCommand`/`runWithConnector`** (`pkg/plugin/run.go`) - shared plumbing every subcommand goes through: wires the `Connector`, `Table` and `RowBuilder` from the common and subcommand-specific flags, then dispatches to `builder.Build()` or `builder.WatchBuild()` and renders. This replaced per-command copies of that sequence, which had drifted (see the comment on `subCommand` in `run.go`)
+3. **`RowBuilder`** (`pkg/plugin/builder.go`) - connects to Kubernetes API, iterates pods/containers, calls `Looper` methods
+4. **`Table`** (`pkg/plugin/table.go`) - holds `Cell` rows, handles sorting/filtering/coloring, renders to stdout
 
 ### Watch Mode (`--watch`/`-w`)
 
@@ -85,26 +86,23 @@ All subcommands support `--watch`/`-w` to re-render the table live on Kubernetes
 
 **Key files:**
 - `pkg/plugin/watch.go` - `WatchBuild()` method on `RowBuilder`, `resetTable()`, watch loop with reconnect logic
-- `pkg/plugin/k8sconnector.go` - `WatchPods(ctx)` and `ClearPodCache()`
+- `pkg/plugin/k8sconnector.go` - `WatchPods(ctx)` and `ClearCache()`
 - `pkg/plugin/builder.go` - `PreBuildFn func() error` field (used by `resources.go` to re-fetch metrics before each render)
+- `pkg/plugin/run.go` - `runSubCommand()`/`runWithConnector()`, the shared wiring every subcommand's watch and non-watch path goes through
 
-**Pattern in each command function:**
-```go
-renderFn := func() (string, error) {
-    // optional post-Build processing (oddities, etc.) on builder.Table
-    return sprintTableAs(*builder.Table, commonFlagList.outputAs), nil
-}
-if commonFlagList.watch {
-    return builder.WatchBuild(&loopinfo, renderFn)
-}
-if err := builder.Build(&loopinfo); err != nil { return err }
-outputTableAs(*builder.Table, commonFlagList.outputAs)
-return nil
-```
+`WatchBuild` renders once, then hands control to a [Bubble Tea](https://github.com/charmbracelet/bubbletea)
+program (module path `charm.land/bubbletea/v2`, not `github.com/charmbracelet/bubbletea/v2`)
+that redraws in place. On a pod event, `coalescePodEvents` swallows further
+events for a 250ms debounce window (a rollout or job burst fires many events,
+and a rebuild refetches everything regardless, so one rebuild per event only
+adds lag), then `rebuild` runs `PreBuildFn` → `Connection.ClearCache()` →
+`resetTable()` → `Build()` → renders. `ClearCache()` drops every cached object,
+not just pods: clearing only the pod list left the owner tree frozen on
+`--watch --tree` during a rollout. When the watch stream ends, the loop waits 5
+seconds and reconnects. Ctrl+C or `q` exits gracefully.
 
-On each pod event: pod cache is cleared → table reset → `Build()` re-fetches and rebuilds → screen cleared → `renderFn()` outputs. Ctrl+C exits gracefully.
-
-**Watch mode for metrics commands** (`cpu --usage`, `memory --usage`, `resources`): pod events don't fire when only metrics change. Set `builder.RefreshInterval = 25 * time.Second` + `builder.PreBuildFn` to re-fetch metrics before each rebuild.
+**Watch mode for metrics commands** (`cpu`, `memory`): pod events don't fire when only metrics change, so these always
+set `builder.RefreshInterval = 25 * time.Second` + `builder.PreBuildFn` in watch mode, to re-fetch metrics before each rebuild regardless of pod events.
 
 ### Standalone Commands (no RowBuilder/Looper)
 
@@ -117,7 +115,7 @@ Commands that emit multiple rows per pod (not per container) set `builder.DontLi
 
 ### Adding a New Command
 
-1. Create `pkg/plugin/<command>.go` - define a struct implementing `Looper`
+1. Create `pkg/plugin/<command>.go` - define a struct implementing `Looper`, and a handler function that builds a `subCommand{loop: &loopinfo, ...}` literal and calls `runSubCommand()`
 2. Register the command in `pkg/plugin/plugin.go:InitSubCommands()`
 3. Follow the pattern from an existing simple command (e.g., `pkg/plugin/image.go`)
 
@@ -126,6 +124,7 @@ Commands that emit multiple rows per pod (not per container) set `builder.DontLi
 | File | Role |
 |------|------|
 | `pkg/plugin/builder.go` | `RowBuilder` engine + `Looper` interface |
+| `pkg/plugin/run.go` | `runSubCommand()`/`runWithConnector()`: shared wiring every subcommand goes through |
 | `pkg/plugin/table.go` | Table rendering (JSON/YAML/CSV/list/text) |
 | `pkg/plugin/plugin.go` | Subcommand registration + `processCommonFlags()` |
 | `pkg/plugin/k8sconnector.go` | Kubernetes API client wrapper |
@@ -140,7 +139,7 @@ Data is stored as `Cell` structs with type markers: `I`=init container, `C`=cont
 
 ### Color Thresholds
 
-`setColourValue` in `pkg/plugin/utils.go`: `0–50%` → green, `51–75%` → orange, `76%+` → red.
+`setColourValue` in `pkg/plugin/utils.go`: `0-50%` → green, `51-75%` → orange, `76%+` → red.
 
 For visually noisy multi-column commands (e.g. `node`), force `COLOUR_ERRORS` mode regardless of the user's `--color` flag to avoid rainbow columns.
 
