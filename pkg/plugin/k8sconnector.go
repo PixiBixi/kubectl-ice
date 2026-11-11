@@ -201,12 +201,20 @@ func (c *Connector) GetNodeLabels(podList []v1.Pod) (map[string]map[string]strin
 	labelMap := make(map[string]map[string]string)
 	nodeNames := make(map[string]int)
 
-	for _, pod := range c.podList {
-		nodeName := pod.Spec.NodeName
+	for i := range podList {
+		nodeName := podList[i].Spec.NodeName
+		if nodeName == "" {
+			// pending pod: Get("") would fail the whole command
+			continue
+		}
 		if _, ok := nodeNames[nodeName]; !ok {
 			nodeNames[nodeName] = 1
 			nameList = append(nameList, nodeName)
 		}
+	}
+
+	if len(nameList) == 0 {
+		return labelMap, nil
 	}
 
 	nodeList, err := c.GetNodes(nameList)
