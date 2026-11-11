@@ -180,20 +180,25 @@ func (s *resource) BuildBranch(info BuilderInformation, rows [][]Cell) ([]Cell, 
 	}
 
 	if rowOut[0].number > 0 {
+		used := float64(rowOut[0].number)
+		if s.ResourceType == "memory" {
+			// USED is summed in kB, REQUEST and LIMIT in bytes
+			used *= 1000
+		}
 		if rowOut[1].number > 0.0 {
 			// calc % request
-			val := validateFloat64(float64(rowOut[0].number) / float64(rowOut[1].number) * 100)
-			rowOut[4].text = fmt.Sprintf(floatfmt, val)
-			rowOut[4].float = val
-			rowOut[4].colour = setColourValue(int(val))
+			val := validateFloat64(used / float64(rowOut[1].number) * 100)
+			rowOut[3].text = fmt.Sprintf(floatfmt, val)
+			rowOut[3].float = val
+			rowOut[3].colour = setColourValue(int(val))
 		}
 
 		if rowOut[2].number > 0.0 {
 			// calc % limit
-			val := validateFloat64(float64(rowOut[0].number) / float64(rowOut[2].number) * 100)
-			rowOut[3].text = fmt.Sprintf(floatfmt, val)
-			rowOut[3].float = val
-			rowOut[3].colour = setColourValue(int(val))
+			val := validateFloat64(used / float64(rowOut[2].number) * 100)
+			rowOut[4].text = fmt.Sprintf(floatfmt, val)
+			rowOut[4].float = val
+			rowOut[4].colour = setColourValue(int(val))
 		}
 
 		var usedColour [2]int
