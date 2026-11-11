@@ -16,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 	v1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
@@ -439,21 +438,10 @@ func (c *Connector) GetNamespace(allNamespaces bool) string {
 		return c.resolvedNamespace
 	}
 
-	// expensive: read kubeconfig from disk, done at most once per invocation
-	namespace := ""
-	ctx := ""
-	clientCfg, _ := clientcmd.NewDefaultClientConfigLoadingRules().Load()
-	if len(*c.configFlags.Context) > 0 {
-		ctx = *c.configFlags.Context
-	} else {
-		ctx = clientCfg.CurrentContext
-	}
-
-	if clientCfg.Contexts[ctx] != nil {
-		namespace = clientCfg.Contexts[ctx].Namespace
-	}
-
-	if len(namespace) == 0 {
+	// the loader honours --kubeconfig, --context and in-cluster config. A broken
+	// kubeconfig already fails in LoadConfig, so its error is not reported twice.
+	namespace, _, err := c.configFlags.ToRawKubeConfigLoader().Namespace()
+	if err != nil || len(namespace) == 0 {
 		namespace = "default"
 	}
 
