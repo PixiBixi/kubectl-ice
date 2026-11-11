@@ -54,7 +54,7 @@ type Connector struct {
 	Flags             commonFlags
 	configFlags       *genericclioptions.ConfigFlags
 	metricFlags       *genericclioptions.ConfigFlags
-	configMapArray    map[string]map[string]string
+	configMapArray    map[string]configMapEntry
 	setNameSpace      string
 	resolvedNamespace string                       // cached result of kubeconfig context lookup
 	namespaceResolved bool                         // true once resolvedNamespace has been populated
@@ -373,47 +373,35 @@ func (c *Connector) GetMetricPods(podNameList []string) ([]v1beta1.PodMetrics, e
 	}
 }
 
-func (c *Connector) GetConfigMaps(configMapName string) (v1.ConfigMap, error) {
-
-	namespace := c.GetNamespace(c.Flags.allNamespaces)
-
-	if len(configMapName) == 0 {
-		return v1.ConfigMap{}, nil
-	}
-
-	cm, err := c.clientSet.CoreV1().ConfigMaps(namespace).Get(c.requestContext(), configMapName, metav1.GetOptions{})
-	if err == nil {
-		return *cm, nil
-	}
-
-	return v1.ConfigMap{}, nil
+type configMapEntry struct {
+	data map[string]string
+	err  error
 }
 
-func (c *Connector) GetConfigMapValue(configMap string, key string) string {
-	var val map[string]map[string]string
-
+// GetConfigMapValue looks the key up in the pod's namespace: with -A the
+// connector namespace is empty. Lookups, failed ones included, are cached by
+// namespace/name.
+func (c *Connector) GetConfigMapValue(namespace, configMap, key string) (string, error) {
 	if len(configMap) == 0 {
-		return ""
+		return "", nil
 	}
 
-	if _, ok := c.configMapArray[configMap]; !ok {
-		cm, err := c.GetConfigMaps(configMap)
+	cacheKey := namespace + "/" + configMap
+	entry, ok := c.configMapArray[cacheKey]
+	if !ok {
+		cm, err := c.clientSet.CoreV1().ConfigMaps(namespace).Get(c.requestContext(), configMap, metav1.GetOptions{})
 		if err != nil {
-			c.configMapArray[configMap] = make(map[string]string)
-			return ""
-		}
-
-		if len(c.configMapArray) > 0 {
-			val = c.configMapArray
+			entry.err = fmt.Errorf("failed to retrieve ConfigMap %s: %w", cacheKey, err)
 		} else {
-			val = make(map[string]map[string]string)
+			entry.data = cm.Data
 		}
-		val[configMap] = cm.Data
-		c.configMapArray = val
-
+		if c.configMapArray == nil {
+			c.configMapArray = make(map[string]configMapEntry)
+		}
+		c.configMapArray[cacheKey] = entry
 	}
 
-	return c.configMapArray[configMap][key]
+	return entry.data[key], entry.err
 }
 
 // GetNamespace retrieves the namespace that is currently set as default.

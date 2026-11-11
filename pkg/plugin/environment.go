@@ -3,6 +3,7 @@ package plugin
 import (
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
@@ -140,7 +141,8 @@ func (s *environment) envBuildRow(info BuilderInformation, env v1.EnvVar, connec
 		}
 
 		if translate {
-			envValue = connect.GetConfigMapValue(configName, key)
+			value, err := connect.GetConfigMapValue(info.Namespace, configName, key)
+			envValue = configMapErrorText(err, value)
 		}
 
 	} else {
@@ -169,4 +171,19 @@ func (s *environment) buildEnvFromEphemeral(container v1.EphemeralContainer) []v
 
 func (s *environment) BuildPodRow(pod v1.Pod, info BuilderInformation) ([][]Cell, error) {
 	return [][]Cell{}, nil
+}
+
+// configMapErrorText shows why a ConfigMap value is missing instead of an
+// empty cell that reads like an empty value.
+func configMapErrorText(err error, value string) string {
+	switch {
+	case err == nil:
+		return value
+	case apierrors.IsNotFound(err):
+		return "<not found>"
+	case apierrors.IsForbidden(err):
+		return "<forbidden>"
+	default:
+		return "<error>"
+	}
 }
