@@ -79,7 +79,7 @@ type ParentData struct {
 }
 
 type LeafNode struct {
-	childIndex    map[string]*LeafNode // O(1) lookup by name
+	childIndex    map[string]*LeafNode // O(1) lookup by namespace/name
 	child         []*LeafNode
 	name          string
 	kind          string
@@ -89,8 +89,11 @@ type LeafNode struct {
 	data          ParentData
 }
 
-func (n *LeafNode) getChild(name string) *LeafNode {
-	if v, ok := n.childIndex[name]; ok {
+// getChild keys by namespace and name: with -A two StatefulSets named db in
+// different namespaces merged into one branch and a pod was lost.
+func (n *LeafNode) getChild(namespace, name string) *LeafNode {
+	key := namespace + "/" + name
+	if v, ok := n.childIndex[key]; ok {
 		return v
 	}
 
@@ -104,7 +107,7 @@ func (n *LeafNode) getChild(name string) *LeafNode {
 	if n.childIndex == nil {
 		n.childIndex = make(map[string]*LeafNode)
 	}
-	n.childIndex[name] = child
+	n.childIndex[key] = child
 
 	return child
 }
@@ -608,10 +611,8 @@ func (c *Connector) LoadReplicaSet(replicaNameList []string, namespace string) e
 		return nil
 	}
 
-	// multi pods
-	if len(c.Flags.labels) > 0 {
-		selector.LabelSelector = c.Flags.labels
-	}
+	// no -l here: it selects pods, and a workload's own labels often differ
+	// from its pod template, which cut the --tree at the pod.
 
 	// with -A one cluster wide list replaces one list per namespace. On 289
 	// namespaces that was 289 sequential round trips for this kind alone.
@@ -623,11 +624,6 @@ func (c *Connector) LoadReplicaSet(replicaNameList []string, namespace string) e
 	rs, err := c.clientSet.AppsV1().ReplicaSets(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve ReplicaSet list from server: %w", err)
-	}
-
-	if len(c.Flags.matchSpecList) > 0 {
-		// --select filters on the pod spec, the workload cache is not used
-		return nil
 	}
 
 	for i := range rs.Items {
@@ -684,10 +680,8 @@ func (c *Connector) LoadDeployment(deploymentNameList []string, namespace string
 		return nil
 	}
 
-	// multi pods
-	if len(c.Flags.labels) > 0 {
-		selector.LabelSelector = c.Flags.labels
-	}
+	// no -l here: it selects pods, and a workload's own labels often differ
+	// from its pod template, which cut the --tree at the pod.
 
 	// with -A one cluster wide list replaces one list per namespace. On 289
 	// namespaces that was 289 sequential round trips for this kind alone.
@@ -699,11 +693,6 @@ func (c *Connector) LoadDeployment(deploymentNameList []string, namespace string
 	d, err := c.clientSet.AppsV1().Deployments(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve Deployment list from server: %w", err)
-	}
-
-	if len(c.Flags.matchSpecList) > 0 {
-		// --select filters on the pod spec, the workload cache is not used
-		return nil
 	}
 
 	for i := range d.Items {
@@ -760,10 +749,8 @@ func (c *Connector) LoadDaemonSet(daemonNameList []string, namespace string) err
 		return nil
 	}
 
-	// multi pods
-	if len(c.Flags.labels) > 0 {
-		selector.LabelSelector = c.Flags.labels
-	}
+	// no -l here: it selects pods, and a workload's own labels often differ
+	// from its pod template, which cut the --tree at the pod.
 
 	// with -A one cluster wide list replaces one list per namespace. On 289
 	// namespaces that was 289 sequential round trips for this kind alone.
@@ -775,11 +762,6 @@ func (c *Connector) LoadDaemonSet(daemonNameList []string, namespace string) err
 	d, err := c.clientSet.AppsV1().DaemonSets(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve DaemonSet list from server: %w", err)
-	}
-
-	if len(c.Flags.matchSpecList) > 0 {
-		// --select filters on the pod spec, the workload cache is not used
-		return nil
 	}
 
 	for i := range d.Items {
@@ -836,10 +818,8 @@ func (c *Connector) LoadStatefulSet(statefulNameList []string, namespace string)
 		return nil
 	}
 
-	// multi pods
-	if len(c.Flags.labels) > 0 {
-		selector.LabelSelector = c.Flags.labels
-	}
+	// no -l here: it selects pods, and a workload's own labels often differ
+	// from its pod template, which cut the --tree at the pod.
 
 	// with -A one cluster wide list replaces one list per namespace. On 289
 	// namespaces that was 289 sequential round trips for this kind alone.
@@ -851,11 +831,6 @@ func (c *Connector) LoadStatefulSet(statefulNameList []string, namespace string)
 	s, err := c.clientSet.AppsV1().StatefulSets(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve StatefulSet list from server: %w", err)
-	}
-
-	if len(c.Flags.matchSpecList) > 0 {
-		// --select filters on the pod spec, the workload cache is not used
-		return nil
 	}
 
 	for i := range s.Items {
@@ -912,10 +887,8 @@ func (c *Connector) LoadJob(jobNameList []string, namespace string) error {
 		return nil
 	}
 
-	// multi pods
-	if len(c.Flags.labels) > 0 {
-		selector.LabelSelector = c.Flags.labels
-	}
+	// no -l here: it selects pods, and a workload's own labels often differ
+	// from its pod template, which cut the --tree at the pod.
 
 	// with -A one cluster wide list replaces one list per namespace. On 289
 	// namespaces that was 289 sequential round trips for this kind alone.
@@ -927,11 +900,6 @@ func (c *Connector) LoadJob(jobNameList []string, namespace string) error {
 	j, err := c.clientSet.BatchV1().Jobs(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve Job list from server: %w", err)
-	}
-
-	if len(c.Flags.matchSpecList) > 0 {
-		// --select filters on the pod spec, the workload cache is not used
-		return nil
 	}
 
 	for i := range j.Items {
@@ -988,10 +956,8 @@ func (c *Connector) LoadCronJob(jobNameList []string, namespace string) error {
 		return nil
 	}
 
-	// multi pods
-	if len(c.Flags.labels) > 0 {
-		selector.LabelSelector = c.Flags.labels
-	}
+	// no -l here: it selects pods, and a workload's own labels often differ
+	// from its pod template, which cut the --tree at the pod.
 
 	// with -A one cluster wide list replaces one list per namespace. On 289
 	// namespaces that was 289 sequential round trips for this kind alone.
@@ -1003,11 +969,6 @@ func (c *Connector) LoadCronJob(jobNameList []string, namespace string) error {
 	j, err := c.clientSet.BatchV1().CronJobs(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve CronJob list from server: %w", err)
-	}
-
-	if len(c.Flags.matchSpecList) > 0 {
-		// --select filters on the pod spec, the workload cache is not used
-		return nil
 	}
 
 	for i := range j.Items {
@@ -1129,7 +1090,7 @@ func (c *Connector) BuildOwnersList() []*LeafNode {
 		// finally we can loop through the above list adding children to the tree where they are needed and using child nodes if they already exist
 		current := &rootnode
 		for i := range parentList {
-			child := current.getChild(parentList[i].name)
+			child := current.getChild(parentList[i].namespace, parentList[i].name)
 			child.kind = parentList[i].kind
 			child.kindIndicator = parentList[i].kindIndicator
 			child.namespace = parentList[i].namespace
