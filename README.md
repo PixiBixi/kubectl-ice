@@ -142,7 +142,7 @@ Flags:
       --node-tree                      Displays the tree with the nodes as the root
   -o, --output string                  Output format, currently csv, list, json and yaml are supported
       --pod-label string               Show the selected pod label as a column
-      --select string                  Filters pods based on their spec field, comma separated list of FIELD OP VALUE, where OP can be one of ==, = and !=
+      --select string                  Filters pods based on their spec field, comma separated list of FIELD OP VALUE, where OP can be one of ==, = and !=, all terms must match
   -l, --selector string                Selector (label query) to filter on
       --show-namespace                 Shows a column containing the pods namespace name for each container
       --show-node                      Show the node name column

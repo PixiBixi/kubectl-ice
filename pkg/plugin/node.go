@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 	v1 "k8s.io/api/core/v1"
+	apiresource "k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 )
 
@@ -83,7 +84,7 @@ func NodeResources(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags,
 	}
 
 	// Always use all namespaces for allocation computation so node totals are accurate.
-	allPods, err := connect.GetAllPodsAllNamespaces()
+	allPods, err := connect.GetAllPodsAllNamespaces(args)
 	if err != nil {
 		return err
 	}
@@ -225,8 +226,8 @@ func NodeResources(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags,
 	return nil
 }
 
-// computeNodeAllocations sums CPU/memory requests and limits for all non-completed
-// pods, grouped by the node they are scheduled on.
+// computeNodeAllocations sums the effective CPU/memory requests and limits of
+// every non-completed pod, grouped by the node it is scheduled on.
 func computeNodeAllocations(pods []v1.Pod) map[string]nodeAllocation {
 	allocs := map[string]nodeAllocation{}
 
@@ -242,52 +243,73 @@ func computeNodeAllocations(pods []v1.Pod) map[string]nodeAllocation {
 		a := allocs[pod.Spec.NodeName]
 		a.podCount++
 
-		for _, c := range pod.Spec.Containers {
-			if req := c.Resources.Requests.Cpu(); req != nil {
-				a.cpuRequested += req.MilliValue()
-			}
-			if lim := c.Resources.Limits.Cpu(); lim != nil {
-				a.cpuLimit += lim.MilliValue()
-			}
-			if req := c.Resources.Requests.Memory(); req != nil {
-				a.memRequested += req.Value()
-			}
-			if lim := c.Resources.Limits.Memory(); lim != nil {
-				a.memLimit += lim.Value()
-			}
-		}
-		// Init containers: only the heaviest matters (Kubernetes takes the max).
-		for _, c := range pod.Spec.InitContainers {
-			if req := c.Resources.Requests.Cpu(); req != nil {
-				v := req.MilliValue()
-				if v > a.cpuRequested {
-					a.cpuRequested = v
-				}
-			}
-			if lim := c.Resources.Limits.Cpu(); lim != nil {
-				v := lim.MilliValue()
-				if v > a.cpuLimit {
-					a.cpuLimit = v
-				}
-			}
-			if req := c.Resources.Requests.Memory(); req != nil {
-				v := req.Value()
-				if v > a.memRequested {
-					a.memRequested = v
-				}
-			}
-			if lim := c.Resources.Limits.Memory(); lim != nil {
-				v := lim.Value()
-				if v > a.memLimit {
-					a.memLimit = v
-				}
-			}
-		}
+		cpu := func(q apiresource.Quantity) int64 { return q.MilliValue() }
+		mem := func(q apiresource.Quantity) int64 { return q.Value() }
+		a.cpuRequested += podEffective(&pod, v1.ResourceCPU, false, cpu)
+		a.cpuLimit += podEffective(&pod, v1.ResourceCPU, true, cpu)
+		a.memRequested += podEffective(&pod, v1.ResourceMemory, false, mem)
+		a.memLimit += podEffective(&pod, v1.ResourceMemory, true, mem)
 
 		allocs[pod.Spec.NodeName] = a
 	}
 
 	return allocs
+}
+
+// podEffective is the scheduler's per pod value (k8s.io/component-helpers
+// resource.PodRequests/PodLimits, not imported to keep the binary small): app
+// containers plus native sidecars, or the largest init container plus the
+// sidecars started before it, whichever is higher, plus the pod overhead.
+func podEffective(pod *v1.Pod, name v1.ResourceName, limits bool, value func(apiresource.Quantity) int64) int64 {
+	get := func(r v1.ResourceRequirements) (int64, bool) {
+		list := r.Requests
+		if limits {
+			list = r.Limits
+		}
+		q, ok := list[name]
+		if !ok {
+			return 0, false
+		}
+		return value(q), true
+	}
+
+	// pod level resources replace the container aggregate when set
+	if pod.Spec.Resources != nil {
+		if v, ok := get(*pod.Spec.Resources); ok {
+			return v + podOverhead(pod, name, value)
+		}
+	}
+
+	var total, sidecars, initMax int64
+	for i := range pod.Spec.Containers {
+		v, _ := get(pod.Spec.Containers[i].Resources)
+		total += v
+	}
+	for i := range pod.Spec.InitContainers {
+		c := &pod.Spec.InitContainers[i]
+		v, _ := get(c.Resources)
+		if c.RestartPolicy != nil && *c.RestartPolicy == v1.ContainerRestartPolicyAlways {
+			sidecars += v
+			v = sidecars
+		} else {
+			v += sidecars
+		}
+		initMax = max(initMax, v)
+	}
+
+	v := max(total+sidecars, initMax)
+	// like PodLimits, overhead is not added to an unset limit
+	if limits && v == 0 {
+		return 0
+	}
+	return v + podOverhead(pod, name, value)
+}
+
+func podOverhead(pod *v1.Pod, name v1.ResourceName, value func(apiresource.Quantity) int64) int64 {
+	if q, ok := pod.Spec.Overhead[name]; ok {
+		return value(q)
+	}
+	return 0
 }
 
 // nodeReadyStatus returns the human-readable status of a node.

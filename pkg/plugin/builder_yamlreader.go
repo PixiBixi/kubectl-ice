@@ -52,6 +52,9 @@ func (b *RowBuilder) loadYaml(filename string) ([]v1.Pod, error) {
 		scanner = bufio.NewScanner(file)
 	}
 
+	// last-applied-configuration annotations go past the 64 KiB default line
+	scanner.Buffer(make([]byte, 0, 64*1024), maxYamlLine)
+
 	// a strings.Builder rather than growing a string by reassignment: one
 	// `kubectl get pods -o yaml` is a single document tens of thousands of lines
 	// long, and the old buffer made that quadratic.
@@ -214,3 +217,5 @@ func (b *RowBuilder) convertFromYaml(input []byte) ([]v1.Pod, error) {
 
 	return nil, nil
 }
+
+const maxYamlLine = 64 << 20

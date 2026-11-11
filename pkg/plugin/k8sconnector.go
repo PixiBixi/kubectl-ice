@@ -16,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
 	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
 	v1beta1 "k8s.io/metrics/pkg/apis/metrics/v1beta1"
 	metricsclientset "k8s.io/metrics/pkg/client/clientset/versioned"
 )
@@ -55,7 +54,7 @@ type Connector struct {
 	Flags             commonFlags
 	configFlags       *genericclioptions.ConfigFlags
 	metricFlags       *genericclioptions.ConfigFlags
-	configMapArray    map[string]map[string]string
+	configMapArray    map[string]configMapEntry
 	setNameSpace      string
 	resolvedNamespace string                       // cached result of kubeconfig context lookup
 	namespaceResolved bool                         // true once resolvedNamespace has been populated
@@ -79,7 +78,7 @@ type ParentData struct {
 }
 
 type LeafNode struct {
-	childIndex    map[string]*LeafNode // O(1) lookup by name
+	childIndex    map[string]*LeafNode // O(1) lookup by namespace/name
 	child         []*LeafNode
 	name          string
 	kind          string
@@ -89,8 +88,11 @@ type LeafNode struct {
 	data          ParentData
 }
 
-func (n *LeafNode) getChild(name string) *LeafNode {
-	if v, ok := n.childIndex[name]; ok {
+// getChild keys by namespace and name: with -A two StatefulSets named db in
+// different namespaces merged into one branch and a pod was lost.
+func (n *LeafNode) getChild(namespace, name string) *LeafNode {
+	key := namespace + "/" + name
+	if v, ok := n.childIndex[key]; ok {
 		return v
 	}
 
@@ -104,7 +106,7 @@ func (n *LeafNode) getChild(name string) *LeafNode {
 	if n.childIndex == nil {
 		n.childIndex = make(map[string]*LeafNode)
 	}
-	n.childIndex[name] = child
+	n.childIndex[key] = child
 
 	return child
 }
@@ -199,12 +201,20 @@ func (c *Connector) GetNodeLabels(podList []v1.Pod) (map[string]map[string]strin
 	labelMap := make(map[string]map[string]string)
 	nodeNames := make(map[string]int)
 
-	for _, pod := range c.podList {
-		nodeName := pod.Spec.NodeName
+	for i := range podList {
+		nodeName := podList[i].Spec.NodeName
+		if nodeName == "" {
+			// pending pod: Get("") would fail the whole command
+			continue
+		}
 		if _, ok := nodeNames[nodeName]; !ok {
 			nodeNames[nodeName] = 1
 			nameList = append(nameList, nodeName)
 		}
+	}
+
+	if len(nameList) == 0 {
+		return labelMap, nil
 	}
 
 	nodeList, err := c.GetNodes(nameList)
@@ -274,6 +284,7 @@ func (c *Connector) SelectMatchinghPodSpec(pods []v1.Pod) ([]v1.Pod, error) {
 
 	// grab and compare the field name to the user suppilied string as the user may have typed all in caps
 	includeList := make(map[string]matchValue)
+	matched := make(map[string]struct{}) // upper case names found, to report unknown ones
 
 	fields := reflect.VisibleFields(reflect.TypeOf(v1.Pod{}.Spec))
 	for _, field := range fields {
@@ -293,6 +304,12 @@ func (c *Connector) SelectMatchinghPodSpec(pods []v1.Pod) ([]v1.Pod, error) {
 		case "bool", "*bool":
 			isValid = true
 		}
+		// named scalar types (dnsPolicy, restartPolicy) print as their value
+		switch field.Type.Kind() {
+		case reflect.String, reflect.Bool, reflect.Int, reflect.Int32, reflect.Int64:
+			isValid = true
+		default:
+		}
 
 		if !isValid {
 			continue
@@ -300,31 +317,40 @@ func (c *Connector) SelectMatchinghPodSpec(pods []v1.Pod) ([]v1.Pod, error) {
 
 		if value, ok := c.Flags.matchSpecList[name]; ok {
 			includeList[field.Name] = value
+			matched[name] = struct{}{}
 		}
 	}
 
-	// now we can loop through doing a name lookup with should be faster than searching each name to find a match
+	if len(includeList) != len(c.Flags.matchSpecList) {
+		var unknown []string
+		for name := range c.Flags.matchSpecList {
+			if _, ok := matched[name]; !ok {
+				unknown = append(unknown, name)
+			}
+		}
+		slices.Sort(unknown)
+		return []v1.Pod{}, fmt.Errorf("unsupported --select field: %s", strings.Join(unknown, ", "))
+	}
+
+	// every term has to match (AND), and a pod is listed once
 	for _, i := range pods {
 		fields := reflect.ValueOf(i.Spec)
+		matched := true
 		for k, v := range includeList {
 			field := fields.FieldByName(k)
 			fieldString := convertToString(field, field.Interface())
 			switch v.operator {
-			case "=":
-				fallthrough
-			case "==":
-				if fieldString == v.value {
-					newPodList = append(newPodList, i)
-				}
+			case "=", "==":
+				matched = matched && fieldString == v.value
 			case "!=":
-				if fieldString != v.value {
-					newPodList = append(newPodList, i)
-				}
+				matched = matched && fieldString != v.value
 			default:
 				return []v1.Pod{}, errors.New("invalid operator found")
 			}
 		}
-
+		if matched {
+			newPodList = append(newPodList, i)
+		}
 	}
 
 	return newPodList, nil
@@ -371,47 +397,35 @@ func (c *Connector) GetMetricPods(podNameList []string) ([]v1beta1.PodMetrics, e
 	}
 }
 
-func (c *Connector) GetConfigMaps(configMapName string) (v1.ConfigMap, error) {
-
-	namespace := c.GetNamespace(c.Flags.allNamespaces)
-
-	if len(configMapName) == 0 {
-		return v1.ConfigMap{}, nil
-	}
-
-	cm, err := c.clientSet.CoreV1().ConfigMaps(namespace).Get(c.requestContext(), configMapName, metav1.GetOptions{})
-	if err == nil {
-		return *cm, nil
-	}
-
-	return v1.ConfigMap{}, nil
+type configMapEntry struct {
+	data map[string]string
+	err  error
 }
 
-func (c *Connector) GetConfigMapValue(configMap string, key string) string {
-	var val map[string]map[string]string
-
+// GetConfigMapValue looks the key up in the pod's namespace: with -A the
+// connector namespace is empty. Lookups, failed ones included, are cached by
+// namespace/name.
+func (c *Connector) GetConfigMapValue(namespace, configMap, key string) (string, error) {
 	if len(configMap) == 0 {
-		return ""
+		return "", nil
 	}
 
-	if _, ok := c.configMapArray[configMap]; !ok {
-		cm, err := c.GetConfigMaps(configMap)
+	cacheKey := namespace + "/" + configMap
+	entry, ok := c.configMapArray[cacheKey]
+	if !ok {
+		cm, err := c.clientSet.CoreV1().ConfigMaps(namespace).Get(c.requestContext(), configMap, metav1.GetOptions{})
 		if err != nil {
-			c.configMapArray[configMap] = make(map[string]string)
-			return ""
-		}
-
-		if len(c.configMapArray) > 0 {
-			val = c.configMapArray
+			entry.err = fmt.Errorf("failed to retrieve ConfigMap %s: %w", cacheKey, err)
 		} else {
-			val = make(map[string]map[string]string)
+			entry.data = cm.Data
 		}
-		val[configMap] = cm.Data
-		c.configMapArray = val
-
+		if c.configMapArray == nil {
+			c.configMapArray = make(map[string]configMapEntry)
+		}
+		c.configMapArray[cacheKey] = entry
 	}
 
-	return c.configMapArray[configMap][key]
+	return entry.data[key], entry.err
 }
 
 // GetNamespace retrieves the namespace that is currently set as default.
@@ -436,21 +450,10 @@ func (c *Connector) GetNamespace(allNamespaces bool) string {
 		return c.resolvedNamespace
 	}
 
-	// expensive: read kubeconfig from disk, done at most once per invocation
-	namespace := ""
-	ctx := ""
-	clientCfg, _ := clientcmd.NewDefaultClientConfigLoadingRules().Load()
-	if len(*c.configFlags.Context) > 0 {
-		ctx = *c.configFlags.Context
-	} else {
-		ctx = clientCfg.CurrentContext
-	}
-
-	if clientCfg.Contexts[ctx] != nil {
-		namespace = clientCfg.Contexts[ctx].Namespace
-	}
-
-	if len(namespace) == 0 {
+	// the loader honours --kubeconfig, --context and in-cluster config. A broken
+	// kubeconfig already fails in LoadConfig, so its error is not reported twice.
+	namespace, _, err := c.configFlags.ToRawKubeConfigLoader().Namespace()
+	if err != nil || len(namespace) == 0 {
 		namespace = "default"
 	}
 
@@ -608,10 +611,8 @@ func (c *Connector) LoadReplicaSet(replicaNameList []string, namespace string) e
 		return nil
 	}
 
-	// multi pods
-	if len(c.Flags.labels) > 0 {
-		selector.LabelSelector = c.Flags.labels
-	}
+	// no -l here: it selects pods, and a workload's own labels often differ
+	// from its pod template, which cut the --tree at the pod.
 
 	// with -A one cluster wide list replaces one list per namespace. On 289
 	// namespaces that was 289 sequential round trips for this kind alone.
@@ -623,11 +624,6 @@ func (c *Connector) LoadReplicaSet(replicaNameList []string, namespace string) e
 	rs, err := c.clientSet.AppsV1().ReplicaSets(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve ReplicaSet list from server: %w", err)
-	}
-
-	if len(c.Flags.matchSpecList) > 0 {
-		// --select filters on the pod spec, the workload cache is not used
-		return nil
 	}
 
 	for i := range rs.Items {
@@ -684,10 +680,8 @@ func (c *Connector) LoadDeployment(deploymentNameList []string, namespace string
 		return nil
 	}
 
-	// multi pods
-	if len(c.Flags.labels) > 0 {
-		selector.LabelSelector = c.Flags.labels
-	}
+	// no -l here: it selects pods, and a workload's own labels often differ
+	// from its pod template, which cut the --tree at the pod.
 
 	// with -A one cluster wide list replaces one list per namespace. On 289
 	// namespaces that was 289 sequential round trips for this kind alone.
@@ -699,11 +693,6 @@ func (c *Connector) LoadDeployment(deploymentNameList []string, namespace string
 	d, err := c.clientSet.AppsV1().Deployments(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve Deployment list from server: %w", err)
-	}
-
-	if len(c.Flags.matchSpecList) > 0 {
-		// --select filters on the pod spec, the workload cache is not used
-		return nil
 	}
 
 	for i := range d.Items {
@@ -760,10 +749,8 @@ func (c *Connector) LoadDaemonSet(daemonNameList []string, namespace string) err
 		return nil
 	}
 
-	// multi pods
-	if len(c.Flags.labels) > 0 {
-		selector.LabelSelector = c.Flags.labels
-	}
+	// no -l here: it selects pods, and a workload's own labels often differ
+	// from its pod template, which cut the --tree at the pod.
 
 	// with -A one cluster wide list replaces one list per namespace. On 289
 	// namespaces that was 289 sequential round trips for this kind alone.
@@ -775,11 +762,6 @@ func (c *Connector) LoadDaemonSet(daemonNameList []string, namespace string) err
 	d, err := c.clientSet.AppsV1().DaemonSets(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve DaemonSet list from server: %w", err)
-	}
-
-	if len(c.Flags.matchSpecList) > 0 {
-		// --select filters on the pod spec, the workload cache is not used
-		return nil
 	}
 
 	for i := range d.Items {
@@ -836,10 +818,8 @@ func (c *Connector) LoadStatefulSet(statefulNameList []string, namespace string)
 		return nil
 	}
 
-	// multi pods
-	if len(c.Flags.labels) > 0 {
-		selector.LabelSelector = c.Flags.labels
-	}
+	// no -l here: it selects pods, and a workload's own labels often differ
+	// from its pod template, which cut the --tree at the pod.
 
 	// with -A one cluster wide list replaces one list per namespace. On 289
 	// namespaces that was 289 sequential round trips for this kind alone.
@@ -851,11 +831,6 @@ func (c *Connector) LoadStatefulSet(statefulNameList []string, namespace string)
 	s, err := c.clientSet.AppsV1().StatefulSets(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve StatefulSet list from server: %w", err)
-	}
-
-	if len(c.Flags.matchSpecList) > 0 {
-		// --select filters on the pod spec, the workload cache is not used
-		return nil
 	}
 
 	for i := range s.Items {
@@ -912,10 +887,8 @@ func (c *Connector) LoadJob(jobNameList []string, namespace string) error {
 		return nil
 	}
 
-	// multi pods
-	if len(c.Flags.labels) > 0 {
-		selector.LabelSelector = c.Flags.labels
-	}
+	// no -l here: it selects pods, and a workload's own labels often differ
+	// from its pod template, which cut the --tree at the pod.
 
 	// with -A one cluster wide list replaces one list per namespace. On 289
 	// namespaces that was 289 sequential round trips for this kind alone.
@@ -927,11 +900,6 @@ func (c *Connector) LoadJob(jobNameList []string, namespace string) error {
 	j, err := c.clientSet.BatchV1().Jobs(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve Job list from server: %w", err)
-	}
-
-	if len(c.Flags.matchSpecList) > 0 {
-		// --select filters on the pod spec, the workload cache is not used
-		return nil
 	}
 
 	for i := range j.Items {
@@ -988,10 +956,8 @@ func (c *Connector) LoadCronJob(jobNameList []string, namespace string) error {
 		return nil
 	}
 
-	// multi pods
-	if len(c.Flags.labels) > 0 {
-		selector.LabelSelector = c.Flags.labels
-	}
+	// no -l here: it selects pods, and a workload's own labels often differ
+	// from its pod template, which cut the --tree at the pod.
 
 	// with -A one cluster wide list replaces one list per namespace. On 289
 	// namespaces that was 289 sequential round trips for this kind alone.
@@ -1003,11 +969,6 @@ func (c *Connector) LoadCronJob(jobNameList []string, namespace string) error {
 	j, err := c.clientSet.BatchV1().CronJobs(listNamespace).List(c.requestContext(), selector)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve CronJob list from server: %w", err)
-	}
-
-	if len(c.Flags.matchSpecList) > 0 {
-		// --select filters on the pod spec, the workload cache is not used
-		return nil
 	}
 
 	for i := range j.Items {
@@ -1053,15 +1014,39 @@ func (c *Connector) ClearCache() {
 	c.loadedAll = nil
 }
 
-// GetAllPodsAllNamespaces returns all pods across all namespaces regardless of
-// the current namespace filter. Used to compute accurate node allocations.
-func (c *Connector) GetAllPodsAllNamespaces() ([]v1.Pod, error) {
-	pods, err := c.clientSet.CoreV1().Pods("").List(c.requestContext(), metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve pods for node allocation: %w", err)
+// GetAllPodsAllNamespaces returns the pods that hold node resources, across all
+// namespaces, on the given nodes or on every node when none is given. The phase
+// filter and the per node selector run server side, and the list is paged so a
+// large cluster is not one unbounded response.
+func (c *Connector) GetAllPodsAllNamespaces(nodeNames []string) ([]v1.Pod, error) {
+	const activePods = "status.phase!=Succeeded,status.phase!=Failed"
+	selectors := []string{activePods}
+	if len(nodeNames) > 0 {
+		selectors = selectors[:0]
+		for _, name := range nodeNames {
+			selectors = append(selectors, activePods+",spec.nodeName="+name)
+		}
 	}
-	return pods.Items, nil
+
+	var out []v1.Pod
+	for _, selector := range selectors {
+		opts := metav1.ListOptions{FieldSelector: selector, Limit: podPageSize}
+		for {
+			pods, err := c.clientSet.CoreV1().Pods("").List(c.requestContext(), opts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to retrieve pods for node allocation: %w", err)
+			}
+			out = append(out, pods.Items...)
+			if pods.Continue == "" {
+				break
+			}
+			opts.Continue = pods.Continue
+		}
+	}
+	return out, nil
 }
+
+const podPageSize = 500
 
 // GetMetricNodes returns node metrics from the metrics-server.
 func (c *Connector) GetMetricNodes() ([]v1beta1.NodeMetrics, error) {
@@ -1105,7 +1090,7 @@ func (c *Connector) BuildOwnersList() []*LeafNode {
 		// finally we can loop through the above list adding children to the tree where they are needed and using child nodes if they already exist
 		current := &rootnode
 		for i := range parentList {
-			child := current.getChild(parentList[i].name)
+			child := current.getChild(parentList[i].namespace, parentList[i].name)
 			child.kind = parentList[i].kind
 			child.kindIndicator = parentList[i].kindIndicator
 			child.namespace = parentList[i].namespace

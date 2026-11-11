@@ -455,7 +455,7 @@ func addCommonFlags(cmdObj *cobra.Command) {
 	cmdObj.Flags().StringP("output", "o", "", `Output format, currently csv, list, json and yaml are supported`)
 	cmdObj.Flags().StringP("match", "m", "", `Filters out results, comma separated list of COLUMN OP VALUE, where OP can be one of ==,<,>,<=,>= and != `)
 	cmdObj.Flags().StringP("match-only", "M", "", `Filters out results but only calculates up visible rows`)
-	cmdObj.Flags().StringP("select", "", "", `Filters pods based on their spec field, comma separated list of FIELD OP VALUE, where OP can be one of ==, = and != `)
+	cmdObj.Flags().StringP("select", "", "", `Filters pods based on their spec field, comma separated list of FIELD OP VALUE, where OP can be one of ==, = and !=, all terms must match`)
 	cmdObj.Flags().BoolP("show-namespace", "", false, `Show the namespace column`)
 	cmdObj.Flags().BoolP("show-node", "", false, `Show the node name column`)
 	cmdObj.Flags().BoolP("show-type", "T", false, `Show the container type column, where:
@@ -581,7 +581,7 @@ func processCommonFlags(cmd *cobra.Command) (commonFlags, error) {
 	if cmd.Flag("select") != nil {
 		if len(cmd.Flag("select").Value.String()) > 0 {
 			rawFilterString := cmd.Flag("select").Value.String()
-			f.matchSpecList, err = splitAndFilterMatchList(rawFilterString, "ABCDEFGHIJKLMNOPQRSTUVWXYZ!%-0123456789<>=*?", []string{"!=", "==", "="})
+			f.matchSpecList, err = splitAndFilterMatchList(rawFilterString, selectAllowedChars, []string{"!=", "==", "="})
 			if err != nil {
 				return commonFlags{}, err
 			}
@@ -762,3 +762,6 @@ func splitAndFilterMatchList(rawSortString string, filterString string, operator
 
 	return sortList, nil
 }
+
+// selectAllowedChars: "." so a node or domain name can be a value
+const selectAllowedChars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ!%-.0123456789<>=*?"
