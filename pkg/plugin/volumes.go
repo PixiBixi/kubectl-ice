@@ -215,7 +215,15 @@ func (s *volumes) decodeVolumeType(volType string, volume v1.VolumeSource) map[s
 		outMap["backing"] = NewCellText(volume.Ephemeral.VolumeClaimTemplate.Name)
 
 	case "FC":
-		outMap["backing"] = NewCellText(volume.FC.TargetWWNs[0])
+		// an FC volume names either targetWWNs or wwids
+		switch {
+		case len(volume.FC.TargetWWNs) > 0:
+			outMap["backing"] = NewCellText(volume.FC.TargetWWNs[0])
+		case len(volume.FC.WWIDs) > 0:
+			outMap["backing"] = NewCellText(volume.FC.WWIDs[0])
+		default:
+			outMap["backing"] = NewCellText("")
+		}
 
 	case "Flocker":
 		outMap["backing"] = NewCellText(volume.Flocker.DatasetUUID)
