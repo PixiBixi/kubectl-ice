@@ -1053,15 +1053,39 @@ func (c *Connector) ClearCache() {
 	c.loadedAll = nil
 }
 
-// GetAllPodsAllNamespaces returns all pods across all namespaces regardless of
-// the current namespace filter. Used to compute accurate node allocations.
-func (c *Connector) GetAllPodsAllNamespaces() ([]v1.Pod, error) {
-	pods, err := c.clientSet.CoreV1().Pods("").List(c.requestContext(), metav1.ListOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve pods for node allocation: %w", err)
+// GetAllPodsAllNamespaces returns the pods that hold node resources, across all
+// namespaces, on the given nodes or on every node when none is given. The phase
+// filter and the per node selector run server side, and the list is paged so a
+// large cluster is not one unbounded response.
+func (c *Connector) GetAllPodsAllNamespaces(nodeNames []string) ([]v1.Pod, error) {
+	const activePods = "status.phase!=Succeeded,status.phase!=Failed"
+	selectors := []string{activePods}
+	if len(nodeNames) > 0 {
+		selectors = selectors[:0]
+		for _, name := range nodeNames {
+			selectors = append(selectors, activePods+",spec.nodeName="+name)
+		}
 	}
-	return pods.Items, nil
+
+	var out []v1.Pod
+	for _, selector := range selectors {
+		opts := metav1.ListOptions{FieldSelector: selector, Limit: podPageSize}
+		for {
+			pods, err := c.clientSet.CoreV1().Pods("").List(c.requestContext(), opts)
+			if err != nil {
+				return nil, fmt.Errorf("failed to retrieve pods for node allocation: %w", err)
+			}
+			out = append(out, pods.Items...)
+			if pods.Continue == "" {
+				break
+			}
+			opts.Continue = pods.Continue
+		}
+	}
+	return out, nil
 }
+
+const podPageSize = 500
 
 // GetMetricNodes returns node metrics from the metrics-server.
 func (c *Connector) GetMetricNodes() ([]v1beta1.NodeMetrics, error) {

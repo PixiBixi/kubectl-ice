@@ -84,7 +84,7 @@ func NodeResources(cmd *cobra.Command, kubeFlags *genericclioptions.ConfigFlags,
 	}
 
 	// Always use all namespaces for allocation computation so node totals are accurate.
-	allPods, err := connect.GetAllPodsAllNamespaces()
+	allPods, err := connect.GetAllPodsAllNamespaces(args)
 	if err != nil {
 		return err
 	}
