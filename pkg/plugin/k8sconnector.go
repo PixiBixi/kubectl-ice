@@ -284,6 +284,7 @@ func (c *Connector) SelectMatchinghPodSpec(pods []v1.Pod) ([]v1.Pod, error) {
 
 	// grab and compare the field name to the user suppilied string as the user may have typed all in caps
 	includeList := make(map[string]matchValue)
+	matched := make(map[string]struct{}) // upper case names found, to report unknown ones
 
 	fields := reflect.VisibleFields(reflect.TypeOf(v1.Pod{}.Spec))
 	for _, field := range fields {
@@ -303,6 +304,12 @@ func (c *Connector) SelectMatchinghPodSpec(pods []v1.Pod) ([]v1.Pod, error) {
 		case "bool", "*bool":
 			isValid = true
 		}
+		// named scalar types (dnsPolicy, restartPolicy) print as their value
+		switch field.Type.Kind() {
+		case reflect.String, reflect.Bool, reflect.Int, reflect.Int32, reflect.Int64:
+			isValid = true
+		default:
+		}
 
 		if !isValid {
 			continue
@@ -310,31 +317,40 @@ func (c *Connector) SelectMatchinghPodSpec(pods []v1.Pod) ([]v1.Pod, error) {
 
 		if value, ok := c.Flags.matchSpecList[name]; ok {
 			includeList[field.Name] = value
+			matched[name] = struct{}{}
 		}
 	}
 
-	// now we can loop through doing a name lookup with should be faster than searching each name to find a match
+	if len(includeList) != len(c.Flags.matchSpecList) {
+		var unknown []string
+		for name := range c.Flags.matchSpecList {
+			if _, ok := matched[name]; !ok {
+				unknown = append(unknown, name)
+			}
+		}
+		slices.Sort(unknown)
+		return []v1.Pod{}, fmt.Errorf("unsupported --select field: %s", strings.Join(unknown, ", "))
+	}
+
+	// every term has to match (AND), and a pod is listed once
 	for _, i := range pods {
 		fields := reflect.ValueOf(i.Spec)
+		matched := true
 		for k, v := range includeList {
 			field := fields.FieldByName(k)
 			fieldString := convertToString(field, field.Interface())
 			switch v.operator {
-			case "=":
-				fallthrough
-			case "==":
-				if fieldString == v.value {
-					newPodList = append(newPodList, i)
-				}
+			case "=", "==":
+				matched = matched && fieldString == v.value
 			case "!=":
-				if fieldString != v.value {
-					newPodList = append(newPodList, i)
-				}
+				matched = matched && fieldString != v.value
 			default:
 				return []v1.Pod{}, errors.New("invalid operator found")
 			}
 		}
-
+		if matched {
+			newPodList = append(newPodList, i)
+		}
 	}
 
 	return newPodList, nil
